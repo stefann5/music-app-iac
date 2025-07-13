@@ -1,20 +1,17 @@
-# app.py
-#!/usr/bin/env python3
 import os
 import aws_cdk as cdk
-from music_app_cdk.registration_stack import RegistrationStack
-from music_app_cdk.config import get_registration_config
+from music_app_cdk.music_app_stack import MusicAppStack
+from music_app_cdk.config import get_app_config
 
 app = cdk.App()
 
-# Get stage from context or environment
-stage = app.node.try_get_context("stage") or os.environ.get("STAGE", "dev")
-config = get_registration_config(stage)
+# Get configuration for the music app
+config = get_app_config()
 
-# Create registration stack
-registration_stack = RegistrationStack(
+# Create the main music app stack
+music_app_stack = MusicAppStack(
     app,
-    f"MusicApp-Registration-{stage.title()}",
+    "MusicAppStack",
     config=config,
     env=cdk.Environment(
         account=os.getenv('CDK_DEFAULT_ACCOUNT'),
@@ -23,8 +20,8 @@ registration_stack = RegistrationStack(
 )
 
 # Add tags
-cdk.Tags.of(registration_stack).add("Environment", stage)
-cdk.Tags.of(registration_stack).add("Project", "MusicApp")
-cdk.Tags.of(registration_stack).add("Component", "Registration")
+cdk.Tags.of(music_app_stack).add("Project", "MusicApp")
+cdk.Tags.of(music_app_stack).add("Component", "Backend")
+cdk.Tags.of(music_app_stack).add("ManagedBy", "CDK")
 
 app.synth()

@@ -16,12 +16,14 @@ dynamodb = boto3.resource('dynamodb')
 
 def handler(event, context):
     """
-    Registration handler - implements requirement 1.1
-    Korisnik se registruje tako što unosi ime, prezime, datum rođenja, 
-    korisničko ime i email (moraju biti jedinstveni), i lozinku.
+    User Registration Handler
+    
+    Implements requirement 1.1: Registracija korisnika
+    Allows users to register with: firstName, lastName, dateOfBirth, 
+    username (unique), email (unique), and password.
     """
     
-    logger.info(f"Registration request received for stage: {os.environ.get('STAGE')}")
+    logger.info(f"Registration request received")
     
     try:
         # Parse request body
@@ -30,23 +32,22 @@ def handler(event, context):
         
         body = json.loads(event['body'])
         
-        # Validate input (requirement 1.1)
+        # Validate input according to requirements
         validation_result = validate_registration_input(body)
         if not validation_result['is_valid']:
             return create_error_response(400, "Validation failed", validation_result['errors'])
         
-        # Check if username is unique (requirement 1.1)
+        # Check uniqueness constraints
         if check_username_exists(body['username']):
             return create_error_response(409, "Username already exists")
         
-        # Check if email is unique (requirement 1.1)
         if check_email_exists(body['email']):
             return create_error_response(409, "Email already exists")
         
         # Create user in Cognito
         cognito_user_id = create_cognito_user(body)
         
-        # Store additional user data in DynamoDB
+        # Store user profile in DynamoDB
         user_id = str(uuid.uuid4())
         store_user_profile(user_id, cognito_user_id, body)
         
@@ -54,7 +55,9 @@ def handler(event, context):
         
         return create_success_response(201, {
             'message': 'User registered successfully',
-            'userId': user_id
+            'userId': user_id,
+            'username': body['username'],
+            'email': body['email']
         })
         
     except ValueError as e:
@@ -67,44 +70,56 @@ def handler(event, context):
 
 def validate_registration_input(input_data):
     """
-    Validate registration input according to requirement 1.1:
-    ime, prezime, datum rođenja, korisničko ime i email (moraju biti jedinstveni), i lozinku
+    Validate registration input according to requirements:
+    - ime (firstName) - required
+    - prezime (lastName) - required  
+    - datum rođenja (dateOfBirth) - required
+    - korisničko ime (username) - required, unique
+    - email - required, unique, valid format
+    - lozinka (password) - required, minimum length
     """
     errors = []
     
-    # Required fields per specification
+    # Required fields validation
     required_fields = ['firstName', 'lastName', 'username', 'email', 'password', 'dateOfBirth']
     for field in required_fields:
         if not input_data.get(field) or not str(input_data[field]).strip():
             errors.append(f'{field} is required')
     
-    # Validate firstName (ime)
+    # First name validation
     if input_data.get('firstName') and len(input_data['firstName'].strip()) < 2:
         errors.append('First name must be at least 2 characters')
     
-    # Validate lastName (prezime)
+    # Last name validation
     if input_data.get('lastName') and len(input_data['lastName'].strip()) < 2:
         errors.append('Last name must be at least 2 characters')
     
-    # Validate username (korisničko ime)
+    # Username validation
     if input_data.get('username'):
         username = input_data['username'].strip()
         if len(username) < 3:
             errors.append('Username must be at least 3 characters')
-        if not username.isalnum():
-            errors.append('Username must contain only letters and numbers')
+        if not username.replace('_', '').replace('-', '').isalnum():
+            errors.append('Username must contain only letters, numbers, hyphens, and underscores')
     
-    # Validate email
+    # Email validation
     if input_data.get('email') and not is_valid_email(input_data['email']):
-        errors.append('Valid email is required')
+        errors.append('Valid email address is required')
     
-    # Validate password (lozinka)
+    # Password validation
     if input_data.get('password'):
         min_length = int(os.environ.get('PASSWORD_MIN_LENGTH', 8))
-        if len(input_data['password']) < min_length:
+        password = input_data['password']
+        if len(password) < min_length:
             errors.append(f'Password must be at least {min_length} characters')
+        if not any(c.islower() for c in password):
+            errors.append('Password must contain at least one lowercase letter')
+        if not any(c.isupper() for c in password):
+            errors.append('Password must contain at least one uppercase letter')
+        if not any(c.isdigit() for c in password):
+            errors.append('Password must contain at least one number')
     
-    # Validate dateOfBirth (datum rođenja)
+    # Date of birth validation
     if input_data.get('dateOfBirth') and not is_valid_date(input_data['dateOfBirth']):
         errors.append('Valid date of birth is required (YYYY-MM-DD format)')
     
@@ -114,21 +129,31 @@ def validate_registration_input(input_data):
     }
 
 def is_valid_email(email):
-    """Simple email validation"""
+    """Validate email format"""
     import re
-    pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
 def is_valid_date(date_string):
-    """Validate date format"""
+    """Validate date format and check if it's a reasonable birth date"""
     try:
-        datetime.strptime(date_string, '%Y-%m-%d')
+        birth_date = datetime.strptime(date_string, '%Y-%m-%d')
+        
+        # Check if date is not in the future
+        if birth_date > datetime.now():
+            return False
+            
+        # Check if date is not too far in the past (reasonable birth year)
+        current_year = datetime.now().year
+        if birth_date.year < current_year - 120:  # 120 years old maximum
+            return False
+            
         return True
     except ValueError:
         return False
 
 def check_username_exists(username):
-    """Check if username already exists (requirement 1.1 - unique username)"""
+    """Check if username already exists in the system"""
     try:
         table = dynamodb.Table(os.environ['USERS_TABLE'])
         response = table.query(
@@ -142,7 +167,7 @@ def check_username_exists(username):
         return False
 
 def check_email_exists(email):
-    """Check if email already exists (requirement 1.1 - unique email)"""
+    """Check if email already exists in the system"""
     try:
         table = dynamodb.Table(os.environ['USERS_TABLE'])
         response = table.query(
@@ -168,7 +193,8 @@ def create_cognito_user(user_data):
                 {'Name': 'family_name', 'Value': user_data['lastName']},
                 {'Name': 'birthdate', 'Value': user_data['dateOfBirth']},
                 {'Name': 'preferred_username', 'Value': user_data['username']},
-                {'Name': 'custom:role', 'Value': 'user'}
+                {'Name': 'custom:role', 'Value': 'user'},
+                {'Name': 'custom:subscription_type', 'Value': 'free'}
             ],
             TemporaryPassword=user_data['password'],
             MessageAction='SUPPRESS'  # Don't send welcome email
@@ -184,7 +210,7 @@ def create_cognito_user(user_data):
             Permanent=True
         )
         
-        # Add user to "users" group
+        # Add user to default "users" group
         try:
             cognito_client.admin_add_user_to_group(
                 UserPoolId=os.environ['USER_POOL_ID'],
@@ -201,7 +227,7 @@ def create_cognito_user(user_data):
         raise ValueError(f"Failed to create user account: {str(e)}")
 
 def store_user_profile(user_id, cognito_user_id, user_data):
-    """Store additional user profile data in DynamoDB"""
+    """Store user profile data in DynamoDB"""
     try:
         table = dynamodb.Table(os.environ['USERS_TABLE'])
         
@@ -214,12 +240,27 @@ def store_user_profile(user_id, cognito_user_id, user_data):
             'lastName': user_data['lastName'],
             'dateOfBirth': user_data['dateOfBirth'],
             'role': 'user',
+            'subscriptionType': 'free',
             'status': 'active',
             'createdAt': datetime.utcnow().isoformat(),
             'lastLogin': None,
             'preferences': {
-                'notifications': True,
-                'privacy': 'public'
+                'genres': [],
+                'notifications': {
+                    'email': True,
+                    'newContent': True,
+                    'subscriptions': True
+                },
+                'privacy': {
+                    'profileVisibility': 'public',
+                    'showListeningHistory': True
+                }
+            },
+            'stats': {
+                'songsPlayed': 0,
+                'totalListeningTime': 0,
+                'favoriteGenres': [],
+                'joinDate': datetime.utcnow().isoformat()
             }
         }
         
@@ -235,12 +276,15 @@ def create_success_response(status_code, data):
     return {
         'statusCode': status_code,
         'headers': get_cors_headers(),
-        'body': json.dumps(data)
+        'body': json.dumps(data, default=str)
     }
 
 def create_error_response(status_code, message, details=None):
     """Create standardized error response"""
-    error_data = {'error': message}
+    error_data = {
+        'error': message,
+        'timestamp': datetime.utcnow().isoformat()
+    }
     if details:
         error_data['details'] = details
     
@@ -254,7 +298,7 @@ def get_cors_headers():
     """Get CORS headers for API responses"""
     return {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'POST,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
         'Content-Type': 'application/json'
     }
