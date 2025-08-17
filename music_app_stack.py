@@ -1,0 +1,61 @@
+from aws_cdk import (
+    Stack,
+    CfnOutput
+)
+from constructs import Construct
+from config import AppConfig
+from constructss.auth import AuthConstruct
+from constructss.database import DatabaseConstruct
+from constructss.api import ApiConstruct
+from lambdas.user_lambdas import UserLambdas  # ← NEW IMPORT
+
+class MusicAppStack(Stack):
+    
+    def __init__(self, scope: Construct, construct_id: str, config: AppConfig, **kwargs) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+        
+        self.config = config
+        
+        print(f"Creating Music App infrastructure...")
+        
+        # Step 1: Create authentication system (Cognito)
+        auth = AuthConstruct(self, "Auth", config)
+        
+        # Step 2: Create database tables (DynamoDB)
+        database = DatabaseConstruct(self, "Database", config)
+        
+        # Step 3: Create Lambda functions
+        user_lambdas = UserLambdas(  # ← CHANGED FROM ComputeConstruct
+            self,
+            "UserLambdas",  # ← CHANGED ID
+            config,
+            auth.user_pool,
+            auth.user_pool_client,
+            database.users_table
+        )
+        
+        # Step 4: Create API Gateway
+        api = ApiConstruct(
+            self,
+            "Api",
+            config,
+            user_lambdas.registration_function  # ← CHANGED REFERENCE
+        )
+        
+        # Step 5: Create outputs (no changes needed here)
+        self._create_outputs(auth, database, api, user_lambdas)
+        
+        print(f"Music App stack created successfully")
+    
+    def _create_outputs(self, auth, database, api, user_lambdas):  # ← Added user_lambdas parameter (optional)
+        """Your existing outputs remain the same"""
+        
+        CfnOutput(
+            self,
+            "ApiUrl",
+            value=api.api.url,
+            description="Music App API Gateway URL",
+            export_name=f"{self.config.app_name}-ApiUrl"
+        )
+        
+        # ... rest of outputs unchanged

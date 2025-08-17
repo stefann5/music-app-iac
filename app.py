@@ -1,7 +1,7 @@
 import os
 import aws_cdk as cdk
-from music_app_cdk.music_app_stack import MusicAppStack
-from music_app_cdk.config import get_app_config
+from music_app_stack import MusicAppStack
+from config import get_app_config
 
 app = cdk.App()
 
