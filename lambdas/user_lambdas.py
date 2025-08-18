@@ -30,6 +30,10 @@ class UserLambdas(Construct):
         # Create registration function (your existing code)
         self.registration_function = self._create_registration_function()
         
+        print(f"Creating login Lambda function...")
+        self.login_function = self._create_login_function()
+
+        
         # Grant permissions (your existing code)
         self._grant_permissions()
     
@@ -54,6 +58,27 @@ class UserLambdas(Construct):
                 'APP_NAME': self.config.app_name
             }
         )
+    def _create_login_function(self) -> _lambda.Function:
+        """Create Lambda function for user login"""
+        
+        return _lambda.Function(
+            self,
+            "LoginFunction",
+            function_name=f"{self.config.app_name}-Login",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/login"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'USER_POOL_ID': self.user_pool.user_pool_id,
+                'USER_POOL_CLIENT_ID': self.user_pool_client.user_pool_client_id,
+                'USERS_TABLE': self.users_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
     
     def _grant_permissions(self):
         """Your existing _grant_permissions method"""
@@ -72,6 +97,18 @@ class UserLambdas(Construct):
                 resources=[self.user_pool.user_pool_arn]
             )
         )
+        self.login_function.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'cognito-idp:AdminInitiateAuth',
+                    'cognito-idp:AdminGetUser'
+                ],
+                resources=[self.user_pool.user_pool_arn]
+            )
+        )
+
+        self.users_table.grant_read_write_data(self.login_function)
         
         self.users_table.grant_read_write_data(self.registration_function)
         

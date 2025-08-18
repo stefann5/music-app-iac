@@ -7,7 +7,7 @@ from constructs import Construct
 from config import AppConfig
 
 class AuthConstruct(Construct):
-    """Authentication infrastructure - extracted from existing code"""
+    """Authentication infrastructure - updated to use username for login"""
     
     def __init__(self, scope: Construct, id: str, config: AppConfig):
         super().__init__(scope, id)
@@ -16,7 +16,7 @@ class AuthConstruct(Construct):
         
         print(f"Creating Cognito User Pool...")
         
-        # Create User Pool (your existing code)
+        # Create User Pool (updated for username login)
         self.user_pool = self._create_user_pool()
         
         # Create User Pool Client (your existing code)
@@ -26,7 +26,7 @@ class AuthConstruct(Construct):
         self._create_user_groups()
     
     def _create_user_pool(self) -> cognito.UserPool:
-        """Your existing _create_user_pool method, unchanged"""
+        """Updated to use username for sign-in instead of email"""
         
         # Password policy configuration
         password_policy = cognito.PasswordPolicy(
@@ -42,13 +42,14 @@ class AuthConstruct(Construct):
             "UserPool",
             user_pool_name=f"{self.config.app_name}-UserPool",
             
-            # Sign-in configuration
+            # Sign-in configuration - UPDATED to use username
             sign_in_aliases=cognito.SignInAliases(
-                email=True,
-                username=False  # Use email as username
+                email=False,
+                username=True  # Use username for sign-in
             ),
+
             
-            # Auto-verify email
+            # Auto-verify email (but don't use it for login)
             auto_verify=cognito.AutoVerifiedAttrs(email=True),
             
             # Required attributes (per requirement 1.1)
@@ -56,8 +57,7 @@ class AuthConstruct(Construct):
                 email=cognito.StandardAttribute(required=True, mutable=True),
                 given_name=cognito.StandardAttribute(required=True, mutable=True),
                 family_name=cognito.StandardAttribute(required=True, mutable=True),
-                birthdate=cognito.StandardAttribute(required=True, mutable=True),
-                preferred_username=cognito.StandardAttribute(required=True, mutable=True)
+                birthdate=cognito.StandardAttribute(required=True, mutable=True)
             ),
             
             # Custom attributes for future features

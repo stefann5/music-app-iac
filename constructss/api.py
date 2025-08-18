@@ -13,12 +13,14 @@ class ApiConstruct(Construct):
         scope: Construct,
         id: str,
         config: AppConfig,
-        registration_function: _lambda.Function
+        registration_function: _lambda.Function,
+        login_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
         self.config = config
         self.registration_function = registration_function
+        self.login_function = login_function
         
         print(f"Creating API Gateway...")
         
@@ -77,6 +79,19 @@ class ApiConstruct(Construct):
             ]
         )
         
+        login_resource = auth_resource.add_resource('login')
+        login_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.login_function),
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+        
         # Future API endpoints will be added here
         # Protected endpoints (will require authorization)
         api_resource = api.root.add_resource('api')
@@ -90,4 +105,5 @@ class ApiConstruct(Construct):
         
         print("API endpoints created:")
         print("- POST /auth/register (implemented)")
+        print("- POST /auth/login (implemented)")  # ADD THIS
         print("- /api/* (placeholder for future features)")
