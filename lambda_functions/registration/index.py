@@ -186,7 +186,7 @@ def create_cognito_user(user_data):
         # Create user in Cognito
         response = cognito_client.admin_create_user(
             UserPoolId=os.environ['USER_POOL_ID'],
-            Username=user_data['email'],  # Use email as username
+            Username=user_data['username'],  # Use email as username
             UserAttributes=[
                 {'Name': 'email', 'Value': user_data['email']},
                 {'Name': 'given_name', 'Value': user_data['firstName']},
