@@ -43,6 +43,9 @@ class UserLambdas(Construct):
         
         print(f"Creating create artist Lambda function...") 
         self.create_artist_function = self._create_create_artist_function()  
+        
+        print(f"Creating get artists Lambda function...")
+        self.get_artists_function = self._create_get_artists_function()
 
         
         # Grant permissions (your existing code)
@@ -144,6 +147,25 @@ class UserLambdas(Construct):
             }
         )
     
+    def _create_get_artists_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all artists"""
+        
+        return _lambda.Function(
+            self,
+            "GetArtistsFunction",
+            function_name=f"{self.config.app_name}-GetArtists",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_artists"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'ARTISTS_TABLE': self.artists_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
     def _grant_permissions(self):
         """Your existing _grant_permissions method"""
         
@@ -196,6 +218,8 @@ class UserLambdas(Construct):
         self.users_table.grant_read_write_data(self.registration_function)
         
         self.artists_table.grant_read_write_data(self.create_artist_function)
+        
+        self.artists_table.grant_read_data(self.get_artists_function)
         
         print("Permissions granted successfully")
     

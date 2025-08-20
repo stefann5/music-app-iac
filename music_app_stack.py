@@ -44,7 +44,8 @@ class MusicAppStack(Stack):
             user_lambdas.login_function,
             user_lambdas.refresh_function,
             user_lambdas.authorizer_function, 
-            user_lambdas.create_artist_function
+            user_lambdas.create_artist_function,
+            user_lambdas.get_artists_function
         )
         
         # Step 5: Create outputs (no changes needed here)

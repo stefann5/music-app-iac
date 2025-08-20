@@ -18,7 +18,8 @@ class ApiConstruct(Construct):
         login_function: _lambda.Function,
         refresh_function: _lambda.Function,
         authorizer_function: _lambda.Function,  
-        create_artist_function: _lambda.Function 
+        create_artist_function: _lambda.Function,
+        get_artists_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -28,6 +29,7 @@ class ApiConstruct(Construct):
         self.refresh_function = refresh_function
         self.authorizer_function = authorizer_function  
         self.create_artist_function = create_artist_function  
+        self.get_artists_function = get_artists_function
         
         print(f"Creating API Gateway...")
         
@@ -125,12 +127,23 @@ class ApiConstruct(Construct):
             ]
         )
         
+        artists_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_artists_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
         print("API endpoints created:")
         print("- POST /auth/register (implemented)")
         print("- POST /auth/login (implemented)") 
         print("- POST /auth/refresh (implemented)")
         print("- POST /artists (protected, admin only)")
+        print("- GET /artists (protected, all users)")
     
     def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
         """Create Lambda authorizer for protected endpoints"""
