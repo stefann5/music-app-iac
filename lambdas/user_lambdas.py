@@ -32,6 +32,8 @@ class UserLambdas(Construct):
         
         print(f"Creating login Lambda function...")
         self.login_function = self._create_login_function()
+        
+        self.refresh_function = self._create_refresh_function()
 
         
         # Grant permissions (your existing code)
@@ -79,6 +81,22 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_refresh_function(self) -> _lambda.Function:
+        return _lambda.Function(
+            self,
+            "RefreshFunction",
+            function_name=f"{self.config.app_name}-Refresh",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/refresh"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            environment={
+                'USER_POOL_ID': self.user_pool.user_pool_id,
+                'USER_POOL_CLIENT_ID': self.user_pool_client.user_pool_client_id,
+                'APP_NAME': self.config.app_name
+            }
+        )
     
     def _grant_permissions(self):
         """Your existing _grant_permissions method"""
@@ -107,9 +125,19 @@ class UserLambdas(Construct):
                 resources=[self.user_pool.user_pool_arn]
             )
         )
+        
+        self.refresh_function.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=['cognito-idp:AdminInitiateAuth'],
+                resources=[self.user_pool.user_pool_arn]
+            )
+        )
 
         self.users_table.grant_read_write_data(self.login_function)
         
         self.users_table.grant_read_write_data(self.registration_function)
         
         print("Permissions granted successfully")
+    
+    

@@ -40,7 +40,8 @@ class MusicAppStack(Stack):
             "Api",
             config,
             user_lambdas.registration_function,
-            user_lambdas.login_function
+            user_lambdas.login_function,
+            user_lambdas.refresh_function
         )
         
         # Step 5: Create outputs (no changes needed here)

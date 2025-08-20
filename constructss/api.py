@@ -14,13 +14,15 @@ class ApiConstruct(Construct):
         id: str,
         config: AppConfig,
         registration_function: _lambda.Function,
-        login_function: _lambda.Function
+        login_function: _lambda.Function,
+        refresh_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
         self.config = config
         self.registration_function = registration_function
         self.login_function = login_function
+        self.refresh_function = refresh_function
         
         print(f"Creating API Gateway...")
         
@@ -90,20 +92,24 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
-
         
-        # Future API endpoints will be added here
-        # Protected endpoints (will require authorization)
+        refresh_resource = auth_resource.add_resource('refresh')
+        refresh_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.refresh_function),
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
         api_resource = api.root.add_resource('api')
         
-        # Placeholder resources for future features
-        # These will be implemented when adding new functionality:
-        # - artists_resource = api_resource.add_resource('artists')
-        # - songs_resource = api_resource.add_resource('songs')  
-        # - users_resource = api_resource.add_resource('users')
-        # - subscriptions_resource = api_resource.add_resource('subscriptions')
         
         print("API endpoints created:")
         print("- POST /auth/register (implemented)")
-        print("- POST /auth/login (implemented)")  # ADD THIS
+        print("- POST /auth/login (implemented)") 
+        print("- POST /auth/refresh (implemented)")
         print("- /api/* (placeholder for future features)")
