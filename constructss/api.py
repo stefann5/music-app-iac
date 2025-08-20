@@ -1,4 +1,5 @@
 from aws_cdk import (
+    Duration,
     aws_apigateway as apigateway,
     aws_lambda as _lambda
 )
@@ -15,7 +16,9 @@ class ApiConstruct(Construct):
         config: AppConfig,
         registration_function: _lambda.Function,
         login_function: _lambda.Function,
-        refresh_function: _lambda.Function
+        refresh_function: _lambda.Function,
+        authorizer_function: _lambda.Function,  
+        create_artist_function: _lambda.Function 
     ):
         super().__init__(scope, id)
         
@@ -23,6 +26,8 @@ class ApiConstruct(Construct):
         self.registration_function = registration_function
         self.login_function = login_function
         self.refresh_function = refresh_function
+        self.authorizer_function = authorizer_function  
+        self.create_artist_function = create_artist_function  
         
         print(f"Creating API Gateway...")
         
@@ -105,11 +110,35 @@ class ApiConstruct(Construct):
             ]
         )
 
-        api_resource = api.root.add_resource('api')
+        authorizer = self._create_lambda_authorizer()
+        artists_resource = api.root.add_resource('artists')
+        artists_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.create_artist_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='201'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='409'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
         
         print("API endpoints created:")
         print("- POST /auth/register (implemented)")
         print("- POST /auth/login (implemented)") 
         print("- POST /auth/refresh (implemented)")
-        print("- /api/* (placeholder for future features)")
+        print("- POST /artists (protected, admin only)")
+    
+    def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
+        """Create Lambda authorizer for protected endpoints"""
+        
+        return apigateway.TokenAuthorizer(
+            self,
+            "LambdaAuthorizer",
+            handler=self.authorizer_function,
+            identity_source="method.request.header.Authorization",
+            results_cache_ttl=Duration.minutes(5)
+        )
