@@ -64,6 +64,9 @@ class ApiConstruct(Construct):
             )
         )
         
+        # Add Gateway Responses for CORS on errors
+        self._add_cors_gateway_responses(api)
+        
         # Create API structure
         self._create_api_resources(api)
         
@@ -155,3 +158,49 @@ class ApiConstruct(Construct):
             identity_source="method.request.header.Authorization",
             results_cache_ttl=Duration.minutes(5)
         )
+
+    def _add_cors_gateway_responses(self, api: apigateway.RestApi):
+        """Add Gateway Responses to handle CORS on error responses"""
+        
+        cors_headers = {
+            'Access-Control-Allow-Origin': "'*'",
+            'Access-Control-Allow-Headers': "'Content-Type,Authorization,X-Requested-With'",
+            'Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'"
+        }
+        
+        # Add gateway responses for common error codes
+        try:
+            api.add_gateway_response(
+                "CorsGatewayResponse401",
+                type=apigateway.ResponseType.UNAUTHORIZED,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse403", 
+                type=apigateway.ResponseType.ACCESS_DENIED,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse404",
+                type=apigateway.ResponseType.NOT_FOUND,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse4xx",
+                type=apigateway.ResponseType.DEFAULT_4XX,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse5xx",
+                type=apigateway.ResponseType.DEFAULT_5XX,
+                response_headers=cors_headers
+            )
+            
+            print("CORS Gateway Responses added successfully")
+            
+        except Exception as e:
+            print(f"Warning: Could not add some gateway responses: {e}")
