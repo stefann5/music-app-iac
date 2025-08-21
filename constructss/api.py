@@ -19,7 +19,9 @@ class ApiConstruct(Construct):
         refresh_function: _lambda.Function,
         authorizer_function: _lambda.Function,  
         create_artist_function: _lambda.Function,
-        get_artists_function: _lambda.Function
+        get_artists_function: _lambda.Function,
+        create_rating_function: _lambda.Function,
+        create_subscription_function: _lambda.Function,
     ):
         super().__init__(scope, id)
         
@@ -30,6 +32,8 @@ class ApiConstruct(Construct):
         self.authorizer_function = authorizer_function  
         self.create_artist_function = create_artist_function  
         self.get_artists_function = get_artists_function
+        self.create_rating_function = create_rating_function
+        self.create_subscription_function = create_subscription_function
         
         print(f"Creating API Gateway...")
         
@@ -129,6 +133,34 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
+
+        rating_resource = api.root.add_resource('rating')
+        rating_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.create_rating_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='201'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='409'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+        subscription_resource = api.root.add_resource('subscription')
+        subscription_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.create_subscription_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='201'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='409'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
         artists_resource.add_method(
             'GET',
@@ -145,6 +177,8 @@ class ApiConstruct(Construct):
         print("- POST /auth/register (implemented)")
         print("- POST /auth/login (implemented)") 
         print("- POST /auth/refresh (implemented)")
+        print("- POST /rating (implemented)")
+        print("- POST /subscription (implemented)")
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
     

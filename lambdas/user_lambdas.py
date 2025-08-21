@@ -17,7 +17,9 @@ class UserLambdas(Construct):
         user_pool,
         user_pool_client,
         users_table,
-        artists_table
+        artists_table,
+        ratings_table,
+        subscriptions_table
     ):
         super().__init__(scope, id)
         
@@ -25,7 +27,9 @@ class UserLambdas(Construct):
         self.user_pool = user_pool
         self.user_pool_client = user_pool_client
         self.users_table = users_table
+        self.ratings_table = ratings_table
         self.artists_table=artists_table
+        self.subscriptions_table = subscriptions_table
         
         print(f"Creating registration Lambda function...")
         
@@ -43,10 +47,15 @@ class UserLambdas(Construct):
         
         print(f"Creating create artist Lambda function...") 
         self.create_artist_function = self._create_create_artist_function()  
+
+        print(f"Creating create artist Lambda function...") 
+        self.create_rating_function = self._create_create_rating_function()  
         
         print(f"Creating get artists Lambda function...")
         self.get_artists_function = self._create_get_artists_function()
 
+        print(f"Creating create subscriptions Lambda function...")
+        self.create_subscribtion_function = self._create_subscribtion_function()
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -166,6 +175,44 @@ class UserLambdas(Construct):
             }
         )
     
+    def _create_create_rating_function(self) -> _lambda.Function:
+        """Create Lambda function for creating ratings"""
+        
+        return _lambda.Function(
+            self,
+            "CreateRatingFunction",
+            function_name=f"{self.config.app_name}-CreateRating", 
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/create_rating"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'RATINGS_TABLE': self.ratings_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
+    def _create_subscribtion_function(self) -> _lambda.Function:
+        """Create Lambda function for creating subscription"""
+        
+        return _lambda.Function(
+            self,
+            "CreateSubscriptionFunction",
+            function_name=f"{self.config.app_name}-CreateSubscription", 
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/create_subscription"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
     def _grant_permissions(self):
         """Your existing _grant_permissions method"""
         
@@ -213,11 +260,16 @@ class UserLambdas(Construct):
             )
         )
 
+
         self.users_table.grant_read_write_data(self.login_function)
         
         self.users_table.grant_read_write_data(self.registration_function)
         
         self.artists_table.grant_read_write_data(self.create_artist_function)
+
+        self.ratings_table.grant_read_write_data(self.create_rating_function)
+
+        self.subscriptions_table.grant_read_write_data(self.create_subscribtion_function)
         
         self.artists_table.grant_read_data(self.get_artists_function)
         
