@@ -1,4 +1,5 @@
 from aws_cdk import (
+    Duration,
     aws_apigateway as apigateway,
     aws_lambda as _lambda
 )
@@ -14,13 +15,21 @@ class ApiConstruct(Construct):
         id: str,
         config: AppConfig,
         registration_function: _lambda.Function,
-        login_function: _lambda.Function
+        login_function: _lambda.Function,
+        refresh_function: _lambda.Function,
+        authorizer_function: _lambda.Function,  
+        create_artist_function: _lambda.Function,
+        get_artists_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
         self.config = config
         self.registration_function = registration_function
         self.login_function = login_function
+        self.refresh_function = refresh_function
+        self.authorizer_function = authorizer_function  
+        self.create_artist_function = create_artist_function  
+        self.get_artists_function = get_artists_function
         
         print(f"Creating API Gateway...")
         
@@ -54,6 +63,9 @@ class ApiConstruct(Construct):
                 logging_level=apigateway.MethodLoggingLevel.OFF  # Disable logging
             )
         )
+        
+        # Add Gateway Responses for CORS on errors
+        self._add_cors_gateway_responses(api)
         
         # Create API structure
         self._create_api_resources(api)
@@ -90,20 +102,105 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
+        
+        refresh_resource = auth_resource.add_resource('refresh')
+        refresh_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.refresh_function),
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
 
+        authorizer = self._create_lambda_authorizer()
+        artists_resource = api.root.add_resource('artists')
+        artists_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.create_artist_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='201'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='409'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
-        # Future API endpoints will be added here
-        # Protected endpoints (will require authorization)
-        api_resource = api.root.add_resource('api')
-        
-        # Placeholder resources for future features
-        # These will be implemented when adding new functionality:
-        # - artists_resource = api_resource.add_resource('artists')
-        # - songs_resource = api_resource.add_resource('songs')  
-        # - users_resource = api_resource.add_resource('users')
-        # - subscriptions_resource = api_resource.add_resource('subscriptions')
+        artists_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_artists_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
         print("API endpoints created:")
         print("- POST /auth/register (implemented)")
-        print("- POST /auth/login (implemented)")  # ADD THIS
-        print("- /api/* (placeholder for future features)")
+        print("- POST /auth/login (implemented)") 
+        print("- POST /auth/refresh (implemented)")
+        print("- POST /artists (protected, admin only)")
+        print("- GET /artists (protected, all users)")
+    
+    def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
+        """Create Lambda authorizer for protected endpoints"""
+        
+        return apigateway.TokenAuthorizer(
+            self,
+            "LambdaAuthorizer",
+            handler=self.authorizer_function,
+            identity_source="method.request.header.Authorization",
+            results_cache_ttl=Duration.minutes(5)
+        )
+
+    def _add_cors_gateway_responses(self, api: apigateway.RestApi):
+        """Add Gateway Responses to handle CORS on error responses"""
+        
+        cors_headers = {
+            'Access-Control-Allow-Origin': "'*'",
+            'Access-Control-Allow-Headers': "'Content-Type,Authorization,X-Requested-With'",
+            'Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'"
+        }
+        
+        # Add gateway responses for common error codes
+        try:
+            api.add_gateway_response(
+                "CorsGatewayResponse401",
+                type=apigateway.ResponseType.UNAUTHORIZED,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse403", 
+                type=apigateway.ResponseType.ACCESS_DENIED,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse404",
+                type=apigateway.ResponseType.NOT_FOUND,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse4xx",
+                type=apigateway.ResponseType.DEFAULT_4XX,
+                response_headers=cors_headers
+            )
+            
+            api.add_gateway_response(
+                "CorsGatewayResponse5xx",
+                type=apigateway.ResponseType.DEFAULT_5XX,
+                response_headers=cors_headers
+            )
+            
+            print("CORS Gateway Responses added successfully")
+            
+        except Exception as e:
+            print(f"Warning: Could not add some gateway responses: {e}")

@@ -31,7 +31,8 @@ class MusicAppStack(Stack):
             config,
             auth.user_pool,
             auth.user_pool_client,
-            database.users_table
+            database.users_table,
+            database.artists_table
         )
         
         # Step 4: Create API Gateway
@@ -40,7 +41,11 @@ class MusicAppStack(Stack):
             "Api",
             config,
             user_lambdas.registration_function,
-            user_lambdas.login_function
+            user_lambdas.login_function,
+            user_lambdas.refresh_function,
+            user_lambdas.authorizer_function, 
+            user_lambdas.create_artist_function,
+            user_lambdas.get_artists_function
         )
         
         # Step 5: Create outputs (no changes needed here)
