@@ -80,8 +80,19 @@ def validate_token(token):
 def generate_policy(user_info, method_arn):
     """Generate IAM policy for API Gateway"""
     
-    # Determine effect based on user role/groups
-    effect = 'Allow'  # Default allow for authenticated users
+    # Extract the API Gateway ARN parts and create a wildcard resource
+    # method_arn format: arn:aws:execute-api:region:account:api-id/stage/METHOD/resource-path
+    arn_parts = method_arn.split('/')
+    if len(arn_parts) >= 3:
+        # Create wildcard resource: arn:aws:execute-api:region:account:api-id/stage/*/*
+        base_arn = '/'.join(arn_parts[:2])  # arn:aws:execute-api:region:account:api-id/stage
+        wildcard_resource = f"{base_arn}/*/*"
+    else:
+        # Fallback to original method ARN if parsing fails
+        wildcard_resource = method_arn
+    
+    # Allow all authenticated users - specific permissions handled in Lambda functions
+    effect = 'Allow'
     
     policy = {
         'principalId': user_info['username'],
@@ -91,7 +102,7 @@ def generate_policy(user_info, method_arn):
                 {
                     'Action': 'execute-api:Invoke',
                     'Effect': effect,
-                    'Resource': method_arn
+                    'Resource': wildcard_resource  # Wildcard allows all methods/paths
                 }
             ]
         },
