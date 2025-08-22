@@ -21,8 +21,10 @@ def handler(event, context):
     logger.info("Get all subscriptions request received")
     
     try:
-        claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
-        username = 'ssss'
+        authorizer = event.get('requestContext', {}).get('authorizer', {})
+         # claims su direktno u authorizer
+        claims = authorizer.get('claims', {})
+        username = claims.get('username') or claims.get('sub')  # fallback na sub
 
 
         # Parse query parameters

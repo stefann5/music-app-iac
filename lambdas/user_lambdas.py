@@ -59,6 +59,9 @@ class UserLambdas(Construct):
 
         print(f"Creating create subscriptions Lambda function...")
         self.create_subscription_function = self._create_subscription_function()
+
+        print(f"Creating delete subscriptions Lambda function...")
+        self.delete_subscription_function = self._create_delete_subscription_function()
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -235,6 +238,25 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_delete_subscription_function(self) -> _lambda.Function:
+        """Create Lambda function for deleting subscription"""
+        
+        return _lambda.Function(
+            self,
+            "DeleteSubscriptionFunction",
+            function_name=f"{self.config.app_name}-DeleteSubscription", 
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",  
+            code=_lambda.Code.from_asset("lambda_functions/delete_subscription"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
     def _grant_permissions(self):
         """Your existing _grant_permissions method"""
         
@@ -296,6 +318,8 @@ class UserLambdas(Construct):
         self.artists_table.grant_read_data(self.get_artists_function)
 
         self.subscriptions_table.grant_read_data(self.get_subscriptions_function)
+
+        self.subscriptions_table.grant_read_write_data(self.delete_subscription_function)
         
         print("Permissions granted successfully")
     

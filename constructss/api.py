@@ -23,6 +23,7 @@ class ApiConstruct(Construct):
         create_rating_function: _lambda.Function,
         get_subscriptions_function: _lambda.Function,
         create_subscription_function: _lambda.Function,
+        delete_subscription_function: _lambda.Function,
     ):
         super().__init__(scope, id)
         
@@ -36,6 +37,7 @@ class ApiConstruct(Construct):
         self.create_rating_function = create_rating_function
         self.create_subscription_function = create_subscription_function
         self.get_subscriptions_function = get_subscriptions_function
+        self.delete_subscription_function = delete_subscription_function
         
         print(f"Creating API Gateway...")
         
@@ -187,6 +189,21 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
+
+        subscription_id_resource = subscription_resource.add_resource('{subscriptionId}')
+
+        subscription_id_resource.add_method(
+            'DELETE',
+            apigateway.LambdaIntegration(self.delete_subscription_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='404'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
         print("API endpoints created:")
         print("- POST /auth/register (implemented)")
@@ -196,7 +213,8 @@ class ApiConstruct(Construct):
         print("- POST /subscription (implemented)")
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
-        print("- GET /subscriptions (protected, all users)")
+        print("- GET /subscription (protected, all users)")
+        print("- DELETE /subscription (protected, all users)")
     
     def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
         """Create Lambda authorizer for protected endpoints"""

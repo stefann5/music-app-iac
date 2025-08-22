@@ -50,7 +50,8 @@ class MusicAppStack(Stack):
             user_lambdas.get_artists_function,
             user_lambdas.create_rating_function,
             user_lambdas.get_subscriptions_function,
-            user_lambdas.create_subscription_function
+            user_lambdas.create_subscription_function,
+            user_lambdas.delete_subscription_function
         )
         
         # Step 5: Create outputs (no changes needed here)
