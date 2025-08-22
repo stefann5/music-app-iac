@@ -42,7 +42,7 @@ def handler(event, context):
                 'songId': rating_data['songId'],
                 'userId': rating_data['userId'],
                 'stars': rating_data['stars'],
-                'timestamp': datetime.now().isoformat()
+                'timestamp': rating_data['timestamp']
             }
         })
         

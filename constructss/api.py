@@ -21,6 +21,7 @@ class ApiConstruct(Construct):
         create_artist_function: _lambda.Function,
         get_artists_function: _lambda.Function,
         create_rating_function: _lambda.Function,
+        get_subscriptions_function: _lambda.Function,
         create_subscription_function: _lambda.Function,
     ):
         super().__init__(scope, id)
@@ -34,6 +35,7 @@ class ApiConstruct(Construct):
         self.get_artists_function = get_artists_function
         self.create_rating_function = create_rating_function
         self.create_subscription_function = create_subscription_function
+        self.get_subscriptions_function = get_subscriptions_function
         
         print(f"Creating API Gateway...")
         
@@ -148,6 +150,19 @@ class ApiConstruct(Construct):
             ]
         )
 
+       
+        
+        artists_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_artists_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
         subscription_resource = api.root.add_resource('subscription')
         subscription_resource.add_method(
             'POST',
@@ -161,10 +176,10 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
-        
-        artists_resource.add_method(
+
+        subscription_resource.add_method(
             'GET',
-            apigateway.LambdaIntegration(self.get_artists_function),
+            apigateway.LambdaIntegration(self.get_subscriptions_function),
             authorizer=authorizer,
             method_responses=[
                 apigateway.MethodResponse(status_code='200'),
@@ -181,6 +196,7 @@ class ApiConstruct(Construct):
         print("- POST /subscription (implemented)")
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
+        print("- GET /subscriptions (protected, all users)")
     
     def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
         """Create Lambda authorizer for protected endpoints"""

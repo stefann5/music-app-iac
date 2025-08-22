@@ -54,8 +54,11 @@ class UserLambdas(Construct):
         print(f"Creating get artists Lambda function...")
         self.get_artists_function = self._create_get_artists_function()
 
+        print(f"Creating get subscriptions Lambda function...")
+        self.get_subscriptions_function = self._create_get_subscriptions_function()
+
         print(f"Creating create subscriptions Lambda function...")
-        self.create_subscribtion_function = self._create_subscribtion_function()
+        self.create_subscription_function = self._create_subscription_function()
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -175,6 +178,25 @@ class UserLambdas(Construct):
             }
         )
     
+    def _create_get_subscriptions_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all subscriptions"""
+        
+        return _lambda.Function(
+            self,
+            "GetSubscriptionsFunction",
+            function_name=f"{self.config.app_name}-GetSubscriptions",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_subscriptions"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
     def _create_create_rating_function(self) -> _lambda.Function:
         """Create Lambda function for creating ratings"""
         
@@ -194,7 +216,7 @@ class UserLambdas(Construct):
             }
         )
     
-    def _create_subscribtion_function(self) -> _lambda.Function:
+    def _create_subscription_function(self) -> _lambda.Function:
         """Create Lambda function for creating subscription"""
         
         return _lambda.Function(
@@ -269,9 +291,11 @@ class UserLambdas(Construct):
 
         self.ratings_table.grant_read_write_data(self.create_rating_function)
 
-        self.subscriptions_table.grant_read_write_data(self.create_subscribtion_function)
+        self.subscriptions_table.grant_read_write_data(self.create_subscription_function)
         
         self.artists_table.grant_read_data(self.get_artists_function)
+
+        self.subscriptions_table.grant_read_data(self.get_subscriptions_function)
         
         print("Permissions granted successfully")
     

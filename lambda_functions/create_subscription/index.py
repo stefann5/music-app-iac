@@ -39,9 +39,10 @@ def handler(event, context):
             'message': 'Subscription created successfully',
             'artist': {
                 'subscriptionId': subscription_id,
-                'userId': subscription_data['userId'],
+                'username': subscription_data['username'],
                 'subscriptionType': subscription_data['subscriptionType'],
                 'targetId': subscription_data['targetId'],
+                'targetName': subscription_data['targetName'],
                 'timestamp': subscription_data['timestamp'],
             }
         })
@@ -50,7 +51,7 @@ def handler(event, context):
         logger.error(f"Create Subscription error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def create_subscription_record(subscription_id, subscription_data, event):
+def create_subscription_record(subscription_id, input_data, event):
     """Create subscription record structure"""
     
     # Get creator info from authorizer context
@@ -59,9 +60,10 @@ def create_subscription_record(subscription_id, subscription_data, event):
     
     return {
         'subscriptionId': subscription_id,
-        'userId': subscription_data['userId'],
-        'subscriptionType': subscription_data['subscriptionType'],
-        'targetId': subscription_data['targetId'],
+        'username': input_data['username'],
+        'subscriptionType': input_data['subscriptionType'],
+        'targetId': input_data['targetId'],
+        'targetName': input_data['targetName'],
         'timestamp': datetime.now().isoformat()
     }
 
@@ -70,7 +72,7 @@ def store_subscription(subscription_data):
     try:
         table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
         table.put_item(Item=subscription_data)
-        logger.info(f"Subscription stored successfully: {subscription_data['subscription_id']}")
+        logger.info(f"Subscription stored successfully: {subscription_data['subscriptionId']}")
         
     except Exception as e:
         logger.error(f"Error storing subscription: {str(e)}")
