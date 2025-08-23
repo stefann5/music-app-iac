@@ -14,11 +14,11 @@ dynamodb = boto3.resource('dynamodb')
 
 def handler(event, context):
     """
-    Get All Artists Handler
-    Protected endpoint for retrieving all subscriptions
+    Get All Ratings Handler
+    Protected endpoint for retrieving all ratings
     """
     
-    logger.info("Get all subscriptions request received")
+    logger.info("Get all ratings request received")
     
     try:
         # Parse query parameters
@@ -27,35 +27,36 @@ def handler(event, context):
         last_key = query_params.get('lastKey')  # For pagination
         username = query_params.get('username')
 
+
         # Validate limit
         if limit > 100:
             limit = 100  # Maximum limit of 100
         
         # Get subscriptions from DynamoDB
-        subscriptions_data = get_subscriptions(limit, last_key, username)
+        ratings_data = get_ratings(limit, last_key, username)
         
-        logger.info(f"Retrieved {len(subscriptions_data['subscriptions'])} subscriptions")
+        logger.info(f"Retrieved {len(ratings_data['ratings'])} ratings")
         
         response_data = {
-            'message': 'Subscriptions retrieved successfully',
-            'subscriptions': subscriptions_data['subscriptions'],
-            'count': len(subscriptions_data['subscriptions']),
-            'hasMore': subscriptions_data.get('hasMore', False)
+            'message': 'Ratings retrieved successfully',
+            'ratings': ratings_data['ratings'],
+            'count': len(ratings_data['ratings']),
+            'hasMore': ratings_data.get('hasMore', False)
         }
         
-        if subscriptions_data.get('lastKey'):
-            response_data['lastKey'] = subscriptions_data['lastKey']
+        if ratings_data.get('lastKey'):
+            response_data['lastKey'] = ratings_data['lastKey']
         
         return create_success_response(200, response_data)
         
     except Exception as e:
-        logger.error(f"Get subscriptions error: {str(e)}")
+        logger.error(f"Get ratings error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def get_subscriptions(limit, last_key=None, username=None):
-    """Get subscriptions from DynamoDB with optional pagination and filtering"""
+def get_ratings(limit, last_key=None, username=None):
+    """Get ratings from DynamoDB with optional pagination and filtering"""
     try:
-        table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+        table = dynamodb.Table(os.environ['RATINGS_TABLE'])
         
             # Scan parameters
         scan_params = {
@@ -81,16 +82,16 @@ def get_subscriptions(limit, last_key=None, username=None):
         response = table.scan(**scan_params)
         
         # Transform artists data for frontend
-        subscriptions = []
+        ratings = []
         for item in response.get('Items', []):
-            subscription = transform_subscription_for_response(item)
-            subscriptions.append(subscription)
+            rating = transform_rating_for_response(item)
+            ratings.append(rating)
         
         # Sort by name for consistent ordering
-        subscriptions.sort(key=lambda x: x['targetName'].lower())
+        ratings.sort(key=lambda x: x['username'].lower())
         
         result = {
-            'subscriptions': subscriptions,
+            'ratings': ratings,
             'hasMore': 'LastEvaluatedKey' in response
         }
         
@@ -105,15 +106,16 @@ def get_subscriptions(limit, last_key=None, username=None):
         return result
         
     except Exception as e:
-        logger.error(f"Error getting subscriptions: {str(e)}")
+        logger.error(f"Error getting ratings: {str(e)}")
         raise
 
-def transform_subscription_for_response(item):
+def transform_rating_for_response(item):
     """Transform DynamoDB item to frontend-friendly format"""
     return {
-        'subscriptionId': item.get('subscriptionId'),
-        'targetId': item.get('targetId'),
-        'targetName': item.get('targetName'),
+        'ratingId': item.get('ratingId'),
+        'username': item.get('username'),
+        'songId': item.get('songId'),
+        'stars': item.get('stars'),
         'timestamp': item.get('timestamp')
     }
 

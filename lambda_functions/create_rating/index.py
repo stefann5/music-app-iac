@@ -40,7 +40,7 @@ def handler(event, context):
             'artist': {
                 'ratingId': rating_id,
                 'songId': rating_data['songId'],
-                'userId': rating_data['userId'],
+                'username': rating_data['username'],
                 'stars': rating_data['stars'],
                 'timestamp': rating_data['timestamp']
             }
@@ -60,7 +60,7 @@ def create_rating_record(rating_id, input_data, event):
     return {
         'ratingId': rating_id,
         'songId': input_data['songId'],
-        'userId': input_data['userId'],
+        'username': input_data['username'],
         'stars': input_data['stars'],
         'timestamp': datetime.now().isoformat()
     }
