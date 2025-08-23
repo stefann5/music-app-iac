@@ -25,7 +25,7 @@ def handler(event, context):
         query_params = event.get('queryStringParameters') or {}
         limit = int(query_params.get('limit', 50))  # Default limit of 50
         last_key = query_params.get('lastKey')  # For pagination
-        username = query_params.get('username')
+        songId = query_params.get('songId')
 
 
         # Validate limit
@@ -33,7 +33,7 @@ def handler(event, context):
             limit = 100  # Maximum limit of 100
         
         # Get subscriptions from DynamoDB
-        ratings_data = get_ratings(limit, last_key, username)
+        ratings_data = get_ratings(limit, last_key, songId)
         
         logger.info(f"Retrieved {len(ratings_data['ratings'])} ratings")
         
@@ -53,7 +53,7 @@ def handler(event, context):
         logger.error(f"Get ratings error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def get_ratings(limit, last_key=None, username=None):
+def get_ratings(limit, last_key=None, songId=None):
     """Get ratings from DynamoDB with optional pagination and filtering"""
     try:
         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
@@ -64,9 +64,9 @@ def get_ratings(limit, last_key=None, username=None):
         }
 
         # Add username filter if specified
-        if username:
-            scan_params['FilterExpression'] = 'contains(username, :username)'
-            scan_params['ExpressionAttributeValues'] = {':username': username}
+        if songId:
+            scan_params['FilterExpression'] = 'contains(songId, :songId)'
+            scan_params['ExpressionAttributeValues'] = {':songId': songId}
         
         # Add pagination if last key is provided
         if last_key:

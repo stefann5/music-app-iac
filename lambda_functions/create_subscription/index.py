@@ -1,9 +1,11 @@
 import json
+from xml.dom.minidom import Attr
 import boto3
 import uuid
 import os
 from datetime import datetime
 import logging
+from boto3.dynamodb.conditions import Key
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -37,7 +39,7 @@ def handler(event, context):
         
         return create_success_response(201, {
             'message': 'Subscription created successfully',
-            'artist': {
+            'subscription': {
                 'subscriptionId': subscription_id,
                 'username': subscription_data['username'],
                 'subscriptionType': subscription_data['subscriptionType'],
@@ -67,16 +69,58 @@ def create_subscription_record(subscription_id, input_data, event):
         'timestamp': datetime.now().isoformat()
     }
 
+
+
 def store_subscription(subscription_data):
-    """Store subscription data in DynamoDB"""
+    """Store subscription with duplicate check using scan (za male tabele)"""
     try:
         table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+        
+        # OPCIJA 3: Scan tabelu za postojeće subscription (jednostavno ali sporije)
+        username = subscription_data['username']
+        target_name = subscription_data['targetName']  
+        sub_type = subscription_data.get('subscriptionType', 'artist')
+        
+        # Scan za duplikate
+        response = table.scan(
+            FilterExpression='username = :username AND targetName = :targetName AND #subscriptionType = :subscriptionType',
+            ExpressionAttributeNames={'#subscriptionType': 'subscriptionType'},
+            ExpressionAttributeValues={
+                ':username': username,
+                ':targetName': target_name,
+                ':subscriptionType': sub_type
+            }
+        )
+        
+        if response['Items']:
+            existing_sub = response['Items'][0]
+            logger.warning(f"Duplicate subscription found: {existing_sub['subscriptionId']}")
+            return create_error_response(400, 'You are already subscribed to selected content!')
+        
+        # Store subscription ako nema duplikata
         table.put_item(Item=subscription_data)
         logger.info(f"Subscription stored successfully: {subscription_data['subscriptionId']}")
         
     except Exception as e:
+        logger.error(f"DynamoDB error: {str(e)}")
+        raise
+    except ValueError as e:
+        # Re-raise custom validation error
+        raise  
+    except Exception as e:
         logger.error(f"Error storing subscription: {str(e)}")
         raise
+
+# def store_subscription(subscription_data):
+#     """Store subscription data in DynamoDB"""
+#     try:
+#         table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+#         table.put_item(Item=subscription_data)
+#         logger.info(f"Subscription stored successfully: {subscription_data['subscriptionId']}")
+        
+#     except Exception as e:
+#         logger.error(f"Error storing subscription: {str(e)}")
+#         raise
 
 def create_success_response(status_code, data):
     """Create standardized success response"""

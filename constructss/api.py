@@ -38,7 +38,7 @@ class ApiConstruct(Construct):
         self.create_rating_function = create_rating_function
         self.create_subscription_function = create_subscription_function
         self.get_subscriptions_function = get_subscriptions_function
-        self.delete_subscription_function = delete_subscription_function,
+        self.delete_subscription_function = delete_subscription_function
         self.get_ratings_function = get_ratings_function
         
         print(f"Creating API Gateway...")
