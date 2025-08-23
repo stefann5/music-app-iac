@@ -30,6 +30,9 @@ def handler(event, context):
         rating_id = str(uuid.uuid4())
         rating_data = create_rating_record(rating_id, body, event)
         
+        if int(rating_data['stars']) < 1 or int(rating_data['stars']) > 5:
+            create_error_response(400, 'Incorrect input for rating (1-5)!')
+
         # Store in DynamoDB
         store_rating(rating_data)
         
@@ -40,7 +43,7 @@ def handler(event, context):
             'artist': {
                 'ratingId': rating_id,
                 'songId': rating_data['songId'],
-                'userId': rating_data['userId'],
+                'username': rating_data['username'],
                 'stars': rating_data['stars'],
                 'timestamp': rating_data['timestamp']
             }
@@ -60,21 +63,63 @@ def create_rating_record(rating_id, input_data, event):
     return {
         'ratingId': rating_id,
         'songId': input_data['songId'],
-        'userId': input_data['userId'],
+        'username': input_data['username'],
         'stars': input_data['stars'],
         'timestamp': datetime.now().isoformat()
     }
 
+
 def store_rating(rating_data):
-    """Store rating data in DynamoDB"""
+    """Store rating with duplicate check using scan (for small tables)"""
     try:
         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
-        table.put_item(Item=rating_data)
-        logger.info(f"Rating stored successfully: {rating_data['ratingId']}")
         
+        username = rating_data['username']
+        songId = rating_data['songId']
+        
+        response = table.scan(
+            FilterExpression='#username = :username AND #songId = :songId',
+            ExpressionAttributeNames={
+                '#username': 'username',
+                '#songId': 'songId'
+            },
+            ExpressionAttributeValues={
+                ':username': username,
+                ':songId': songId
+            }
+)
+        
+        if response['Items']:
+            existing_rating = response['Items'][0]
+            logger.warning(f"Duplicate rating found: {existing_rating['songId']}")
+            raise ValueError('You have already rated this item!')
+        
+        # Store rating ako nema duplikata
+        table.put_item(Item=rating_data)
+        logger.info(f"Rating stored successfully: {rating_data['songId']}")
+        
+    except Exception as e:
+        logger.error(f"DynamoDB error: {str(e)}")
+        raise
+    except ValueError as e:
+        # Re-raise custom validation error
+        return create_error_response(400, str(e))
+          
     except Exception as e:
         logger.error(f"Error storing rating: {str(e)}")
         raise
+
+
+# def store_rating(rating_data):
+#     """Store rating data in DynamoDB"""
+#     try:
+#         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
+#         table.put_item(Item=rating_data)
+#         logger.info(f"Rating stored successfully: {rating_data['ratingId']}")
+        
+#     except Exception as e:
+#         logger.error(f"Error storing rating: {str(e)}")
+#         raise
 
 def create_success_response(status_code, data):
     """Create standardized success response"""

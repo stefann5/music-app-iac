@@ -62,6 +62,9 @@ class UserLambdas(Construct):
 
         print(f"Creating delete subscriptions Lambda function...")
         self.delete_subscription_function = self._create_delete_subscription_function()
+
+        print(f"Creating get ratings Lambda function...")
+        self.get_ratings_function = self._create_get_ratings_function()
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -200,6 +203,25 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_get_ratings_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all ratings"""
+        
+        return _lambda.Function(
+            self,
+            "GetRatingsFunction",
+            function_name=f"{self.config.app_name}-GetRatings",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_ratings"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'RATINGS_TABLE': self.ratings_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
     def _create_create_rating_function(self) -> _lambda.Function:
         """Create Lambda function for creating ratings"""
         
@@ -320,6 +342,8 @@ class UserLambdas(Construct):
         self.subscriptions_table.grant_read_data(self.get_subscriptions_function)
 
         self.subscriptions_table.grant_read_write_data(self.delete_subscription_function)
+
+        self.ratings_table.grant_read_data(self.get_ratings_function)
         
         print("Permissions granted successfully")
     

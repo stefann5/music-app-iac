@@ -24,6 +24,7 @@ class ApiConstruct(Construct):
         get_subscriptions_function: _lambda.Function,
         create_subscription_function: _lambda.Function,
         delete_subscription_function: _lambda.Function,
+        get_ratings_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -38,6 +39,7 @@ class ApiConstruct(Construct):
         self.create_subscription_function = create_subscription_function
         self.get_subscriptions_function = get_subscriptions_function
         self.delete_subscription_function = delete_subscription_function
+        self.get_ratings_function = get_ratings_function
         
         print(f"Creating API Gateway...")
         
@@ -152,6 +154,16 @@ class ApiConstruct(Construct):
             ]
         )
 
+        rating_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_ratings_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
        
         
         artists_resource.add_method(
@@ -214,6 +226,7 @@ class ApiConstruct(Construct):
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
         print("- GET /subscription (protected, all users)")
+        print("- GET /rating (implemented)")
         print("- DELETE /subscription (protected, all users)")
     
     def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
