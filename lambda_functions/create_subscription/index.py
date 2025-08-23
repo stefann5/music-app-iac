@@ -95,7 +95,7 @@ def store_subscription(subscription_data):
         if response['Items']:
             existing_sub = response['Items'][0]
             logger.warning(f"Duplicate subscription found: {existing_sub['subscriptionId']}")
-            return create_error_response(400, 'You are already subscribed to selected content!')
+            raise ValueError('You are already subscribed to selected content!')
         
         # Store subscription ako nema duplikata
         table.put_item(Item=subscription_data)
@@ -106,7 +106,7 @@ def store_subscription(subscription_data):
         raise
     except ValueError as e:
         # Re-raise custom validation error
-        raise  
+        return create_error_response(400, str(e))  
     except Exception as e:
         logger.error(f"Error storing subscription: {str(e)}")
         raise

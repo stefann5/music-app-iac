@@ -92,7 +92,7 @@ def store_rating(rating_data):
         if response['Items']:
             existing_rating = response['Items'][0]
             logger.warning(f"Duplicate rating found: {existing_rating['songId']}")
-            return create_error_response(400, 'You have already rated this item!')
+            raise ValueError('You have already rated this item!')
         
         # Store rating ako nema duplikata
         table.put_item(Item=rating_data)
@@ -103,7 +103,8 @@ def store_rating(rating_data):
         raise
     except ValueError as e:
         # Re-raise custom validation error
-        raise  
+        return create_error_response(400, str(e))
+          
     except Exception as e:
         logger.error(f"Error storing rating: {str(e)}")
         raise
