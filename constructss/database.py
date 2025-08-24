@@ -26,6 +26,9 @@ class DatabaseConstruct(Construct):
 
         print(f"Creating Subscriptions table...")
         self.subscriptions_table = self._create_subscriptions_table()
+
+        print(f"Creating Notifications table...")
+        self.notifications_table = self._create_notifications_table()
     
     def _create_users_table(self) -> dynamodb.Table:
         """Your existing _create_users_table method, unchanged"""
@@ -199,4 +202,42 @@ class DatabaseConstruct(Construct):
         )
         
         print("Subscriptions table created with indexes")
+        return table
+    
+    def _create_notifications_table(self) -> dynamodb.Table:
+        """Create Notifications table for user content notifications"""
+
+        table = dynamodb.Table(
+            self,
+            "NotificationsTable",
+            table_name=f"{self.config.app_name}-Notifications",
+            partition_key=dynamodb.Attribute(
+                name="notificationId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY
+        )
+
+        # GSI za listanje notifikacija po korisniku (subscriber)
+        table.add_global_secondary_index(
+            index_name="subscriber-index",
+            partition_key=dynamodb.Attribute(
+                name="subscriber",   # username iz Users tabele
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        # GSI za listanje notifikacija po contentId
+        table.add_global_secondary_index(
+            index_name="contentId-index",
+            partition_key=dynamodb.Attribute(
+                name="contentId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        print("Notifications table created with indexes")
         return table

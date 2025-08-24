@@ -19,7 +19,8 @@ class UserLambdas(Construct):
         users_table,
         artists_table,
         ratings_table,
-        subscriptions_table
+        subscriptions_table,
+        notifications_table
     ):
         super().__init__(scope, id)
         
@@ -30,6 +31,7 @@ class UserLambdas(Construct):
         self.ratings_table = ratings_table
         self.artists_table=artists_table
         self.subscriptions_table = subscriptions_table
+        self.notifications_table = notifications_table
         
         print(f"Creating registration Lambda function...")
         
@@ -65,6 +67,9 @@ class UserLambdas(Construct):
 
         print(f"Creating get ratings Lambda function...")
         self.get_ratings_function = self._create_get_ratings_function()
+
+        print(f"Creating notifications Lambda function...")
+        self.notify_subscribers_function = self._create_notify_subscribers_function()
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -260,6 +265,28 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_notify_subscribers_function(self) -> _lambda.Function:
+        """Create Lambda function for creating subscription"""
+        
+        return _lambda.Function(
+            self,
+            "NotifySubscribersFunction",
+            function_name=f"{self.config.app_name}-NotifySubscribers", 
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/notify_subscribers"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'NOTIFICATIONS_TABLE': self.notifications_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
+    
+
+
     def _create_delete_subscription_function(self) -> _lambda.Function:
         """Create Lambda function for deleting subscription"""
         
@@ -344,7 +371,9 @@ class UserLambdas(Construct):
         self.subscriptions_table.grant_read_write_data(self.delete_subscription_function)
 
         self.ratings_table.grant_read_data(self.get_ratings_function)
-        
+
+        self.notifications_table.grant_read_write_data(self.notify_subscribers_function)
+
         print("Permissions granted successfully")
     
     

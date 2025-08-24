@@ -34,7 +34,8 @@ class MusicAppStack(Stack):
             database.users_table,
             database.artists_table,
             database.ratings_table,
-            database.subscriptions_table
+            database.subscriptions_table,
+            database.notifications_table
         )
         
         # Step 4: Create API Gateway
@@ -52,7 +53,8 @@ class MusicAppStack(Stack):
             user_lambdas.get_subscriptions_function,
             user_lambdas.create_subscription_function,
             user_lambdas.delete_subscription_function,
-            user_lambdas.get_ratings_function
+            user_lambdas.get_ratings_function,
+            user_lambdas.notify_subscribers_function
         )
         
         # Step 5: Create outputs (no changes needed here)

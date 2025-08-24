@@ -26,13 +26,14 @@ def handler(event, context):
         limit = int(query_params.get('limit', 50))  # Default limit of 50
         last_key = query_params.get('lastKey')  # For pagination
         username = query_params.get('username')
+        targetName = query_params.get('targetName')
 
         # Validate limit
         if limit > 100:
             limit = 100  # Maximum limit of 100
         
-        # Get subscriptions from DynamoDB
-        subscriptions_data = get_subscriptions(limit, last_key, username)
+        subscriptions_data = get_subscriptions(limit, last_key, username, targetName)
+        
         
         logger.info(f"Retrieved {len(subscriptions_data['subscriptions'])} subscriptions")
         
@@ -52,7 +53,7 @@ def handler(event, context):
         logger.error(f"Get subscriptions error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def get_subscriptions(limit, last_key=None, username=None):
+def get_subscriptions(limit, last_key=None, username=None, targetName=None):
     """Get subscriptions from DynamoDB with optional pagination and filtering"""
     try:
         table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
@@ -62,10 +63,14 @@ def get_subscriptions(limit, last_key=None, username=None):
             'Limit': limit
         }
 
-        # Add username filter if specified
+        # Add username or targetName filter if specified
         if username:
             scan_params['FilterExpression'] = 'contains(username, :username)'
             scan_params['ExpressionAttributeValues'] = {':username': username}
+
+        if targetName:
+            scan_params['FilterExpression'] = 'contains(targetName, :targetName)'
+            scan_params['ExpressionAttributeValues'] = {':targetName': targetName}
         
         # Add pagination if last key is provided
         if last_key:
@@ -112,6 +117,7 @@ def transform_subscription_for_response(item):
     """Transform DynamoDB item to frontend-friendly format"""
     return {
         'subscriptionId': item.get('subscriptionId'),
+        'username': item.get('username'), 
         'targetId': item.get('targetId'),
         'targetName': item.get('targetName'),
         'timestamp': item.get('timestamp')
