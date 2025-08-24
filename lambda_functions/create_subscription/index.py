@@ -106,7 +106,7 @@ def store_subscription(subscription_data):
         raise
     except ValueError as e:
         # Re-raise custom validation error
-        return create_error_response(400, str(e))  
+        return create_error_response(400, str(e), 'You are already subscribed!')  
     except Exception as e:
         logger.error(f"Error storing subscription: {str(e)}")
         raise
@@ -134,7 +134,8 @@ def create_error_response(status_code, message, details=None):
     """Create standardized error response"""
     error_data = {
         'error': message,
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': datetime.utcnow().isoformat(),
+        'message': details
     }
     if details:
         error_data['details'] = details
