@@ -26,6 +26,9 @@ class DatabaseConstruct(Construct):
 
         print(f"Creating Subscriptions table...")
         self.subscriptions_table = self._create_subscriptions_table()
+
+        print(f"Creating music conntent table...")
+        self.music_content_table = self._create_music_content_table()
     
     def _create_users_table(self) -> dynamodb.Table:
         """Your existing _create_users_table method, unchanged"""
@@ -199,4 +202,42 @@ class DatabaseConstruct(Construct):
         )
         
         print("Subscriptions table created with indexes")
+        return table
+    
+    def _create_music_content_table(self) -> dynamodb.Table:
+        """Create MusicContent table for storing music content information"""
+        
+        table = dynamodb.Table(
+            self,
+            "MusicContentTable", 
+            table_name=f"{self.config.app_name}-MusicContent",
+            partition_key=dynamodb.Attribute(
+                name='contentId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY
+        )
+        
+        # Add Global Secondary Index for title lookup
+        table.add_global_secondary_index(
+            index_name='title-index',
+            partition_key=dynamodb.Attribute(
+                name='title',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        # Add Global Secondary Index for artistId lookup
+        table.add_global_secondary_index(
+            index_name='artistId-index',
+            partition_key=dynamodb.Attribute(
+                name='artistId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        print("MusicContent table created with title and artistId indexes")
         return table
