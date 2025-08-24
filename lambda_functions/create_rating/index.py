@@ -103,7 +103,7 @@ def store_rating(rating_data):
         raise
     except ValueError as e:
         # Re-raise custom validation error
-        return create_error_response(400, str(e))
+        return create_error_response(400, str(e), 'You have already rated this item!')
           
     except Exception as e:
         logger.error(f"Error storing rating: {str(e)}")

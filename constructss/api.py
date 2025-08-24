@@ -24,7 +24,9 @@ class ApiConstruct(Construct):
         get_subscriptions_function: _lambda.Function,
         create_subscription_function: _lambda.Function,
         delete_subscription_function: _lambda.Function,
-        get_ratings_function: _lambda.Function
+        get_ratings_function: _lambda.Function,
+        notify_subscribers_function: _lambda.Function,
+        get_notifications_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -40,6 +42,8 @@ class ApiConstruct(Construct):
         self.get_subscriptions_function = get_subscriptions_function
         self.delete_subscription_function = delete_subscription_function
         self.get_ratings_function = get_ratings_function
+        self.notify_subscribers_function = notify_subscribers_function
+        self.get_notifications_function = get_notifications_function
         
         print(f"Creating API Gateway...")
         
@@ -177,6 +181,31 @@ class ApiConstruct(Construct):
             ]
         )
 
+        notification_resource = api.root.add_resource('notification')
+        notification_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.notify_subscribers_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='201'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='409'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+        notification_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_notifications_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
         subscription_resource = api.root.add_resource('subscription')
         subscription_resource.add_method(
             'POST',
@@ -223,9 +252,11 @@ class ApiConstruct(Construct):
         print("- POST /auth/refresh (implemented)")
         print("- POST /rating (implemented)")
         print("- POST /subscription (implemented)")
+        print("- POST /notification (implemented)")
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
         print("- GET /subscription (protected, all users)")
+        print("- GET /notification (protected, all users)")
         print("- GET /rating (implemented)")
         print("- DELETE /subscription (protected, all users)")
     
