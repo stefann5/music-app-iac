@@ -72,7 +72,6 @@ def create_notification_record(notification_id, input_data, event):
         'contentId': input_data['contentId'],
         'content': input_data['content'],
         'message': input_data['message'],
-        'read': False,
         'timestamp': datetime.now().isoformat()
     }
 

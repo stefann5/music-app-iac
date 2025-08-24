@@ -70,6 +70,11 @@ class UserLambdas(Construct):
 
         print(f"Creating notifications Lambda function...")
         self.notify_subscribers_function = self._create_notify_subscribers_function()
+
+        print(f"Creating get notifications Lambda function...")
+        self.get_notifications_function = self._create_get_notifications_function()
+
+        
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -188,6 +193,26 @@ class UserLambdas(Construct):
                 'APP_NAME': self.config.app_name
             }
         )
+    
+    def _create_get_notifications_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all notifications"""
+        
+        return _lambda.Function(
+            self,
+            "GetNotificationsFunction",
+            function_name=f"{self.config.app_name}-GetNotifications",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_notifications"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'NOTIFICATIONS_TABLE': self.notifications_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
     
     def _create_get_subscriptions_function(self) -> _lambda.Function:
         """Create Lambda function for getting all subscriptions"""
@@ -373,6 +398,8 @@ class UserLambdas(Construct):
         self.ratings_table.grant_read_data(self.get_ratings_function)
 
         self.notifications_table.grant_read_write_data(self.notify_subscribers_function)
+
+        self.notifications_table.grant_read_data(self.get_notifications_function)
 
         print("Permissions granted successfully")
     
