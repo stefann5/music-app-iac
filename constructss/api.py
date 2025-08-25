@@ -27,8 +27,8 @@ class ApiConstruct(Construct):
         get_ratings_function: _lambda.Function,
         get_music_content_function: _lambda.Function,
         create_music_content_function: _lambda.Function,
-        update_music_content_function: _lambda.Function,
-        delete_music_content_function: _lambda.Function
+        # update_music_content_function: _lambda.Function,
+        # delete_music_content_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -46,8 +46,8 @@ class ApiConstruct(Construct):
         self.get_ratings_function = get_ratings_function
         self.get_music_content_function = get_music_content_function
         self.create_music_content_function = create_music_content_function
-        self.update_music_content_function = update_music_content_function
-        self.delete_music_content_function = delete_music_content_function
+        # self.update_music_content_function = update_music_content_function
+        # self.delete_music_content_function = delete_music_content_function
         
         print(f"Creating API Gateway...")
         
@@ -64,6 +64,13 @@ class ApiConstruct(Construct):
             rest_api_name=f"{self.config.app_name}-API",
             description=f"REST API for {self.config.app_name}",
             
+            binary_media_types=[
+                'multipart/form-data',
+                'audio/*',
+                'image/*',
+                'application/octet-stream'
+            ],
+
             # CORS configuration
             default_cors_preflight_options=apigateway.CorsOptions(
                 allow_origins=self.config.cors_origins,
@@ -251,32 +258,32 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
-        #updating music content
-        music_content_resource.add_method(
-            'PUT',
-            apigateway.LambdaIntegration(self.update_music_content_function),
-            authorizer=authorizer,
-            method_responses=[
-                apigateway.MethodResponse(status_code='200'),
-                apigateway.MethodResponse(status_code='400'),
-                apigateway.MethodResponse(status_code='403'),
-                apigateway.MethodResponse(status_code='404'),
-                apigateway.MethodResponse(status_code='500')
-            ]
-        )
-        #deleting music content
-        music_content_resource.add_method(
-            'DELETE',
-            apigateway.LambdaIntegration(self.delete_music_content_function),
-            authorizer=authorizer,
-            method_responses=[
-                apigateway.MethodResponse(status_code='200'),
-                apigateway.MethodResponse(status_code='400'),
-                apigateway.MethodResponse(status_code='403'),
-                apigateway.MethodResponse(status_code='404'),
-                apigateway.MethodResponse(status_code='500')
-            ]
-        )
+        # #updating music content
+        # music_content_resource.add_method(
+        #     'PUT',
+        #     apigateway.LambdaIntegration(self.update_music_content_function),
+        #     authorizer=authorizer,
+        #     method_responses=[
+        #         apigateway.MethodResponse(status_code='200'),
+        #         apigateway.MethodResponse(status_code='400'),
+        #         apigateway.MethodResponse(status_code='403'),
+        #         apigateway.MethodResponse(status_code='404'),
+        #         apigateway.MethodResponse(status_code='500')
+        #     ]
+        # )
+        # #deleting music content
+        # music_content_resource.add_method(
+        #     'DELETE',
+        #     apigateway.LambdaIntegration(self.delete_music_content_function),
+        #     authorizer=authorizer,
+        #     method_responses=[
+        #         apigateway.MethodResponse(status_code='200'),
+        #         apigateway.MethodResponse(status_code='400'),
+        #         apigateway.MethodResponse(status_code='403'),
+        #         apigateway.MethodResponse(status_code='404'),
+        #         apigateway.MethodResponse(status_code='500')
+        #     ]
+        # )
         
         print("API endpoints created:")
         print("- POST /auth/register (implemented)")
@@ -291,8 +298,8 @@ class ApiConstruct(Construct):
         print("- DELETE /subscription (protected, all users)")
         print("- GET /music-content (protected, all users)")
         print("- POST /music-content (protected, admin only)")
-        print("- PUT /music-content (protected, admin only)")
-        print("- DELETE /music-content (protected, admin only)")
+        # print("- PUT /music-content (protected, admin only)")
+        # print("- DELETE /music-content (protected, admin only)")
     
     def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
         """Create Lambda authorizer for protected endpoints"""
