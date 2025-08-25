@@ -11,6 +11,12 @@ s3_client = boto3.client('s3')
 
 def handler(event, context):
     try:
+        if not is_admin_user(event):
+            return {
+                'statusCode': 403,
+                'body': json.dumps({'message': 'Access denied. Administrator role required.'})
+            }
+        
         table_name = os.environ['MUSIC_CONTENT_TABLE']
         bucket_name = os.environ['MUSIC_CONTENT_BUCKET']
         table = dynamodb.Table(table_name)
@@ -182,3 +188,19 @@ def _parse_multipart(body: bytes, boundary: str) -> list:
         parts.append(part)
 
     return parts
+
+def is_admin_user(event):
+    """Check if the user has administrator role"""
+    try:
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        # Check if user is in administrators group
+        groups = authorizer.get('groups', '').split(',')
+        role = authorizer.get('role', '')
+        
+        return 'administrators' in groups or role == 'admin'
+        
+    except Exception as e:
+        print(f"Error checking admin role: {str(e)}")
+        return False

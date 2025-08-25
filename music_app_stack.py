@@ -59,8 +59,8 @@ class MusicAppStack(Stack):
             user_lambdas.get_ratings_function,
             user_lambdas.get_music_content_function,
             user_lambdas.create_music_content_function,
-            # user_lambdas.update_music_content_function,
-            # user_lambdas.delete_music_content_function
+            user_lambdas.update_music_content_function,
+            user_lambdas.delete_music_content_function
         )
         
         # Step 5: Create outputs (no changes needed here)
