@@ -22,6 +22,7 @@ class UserLambdas(Construct):
         subscriptions_table,
         music_content_table,
         music_bucket
+        notifications_table
     ):
         super().__init__(scope, id)
         
@@ -34,6 +35,7 @@ class UserLambdas(Construct):
         self.subscriptions_table = subscriptions_table
         self.music_content_table = music_content_table
         self.music_bucket = music_bucket
+        self.notifications_table = notifications_table
         
         print(f"Creating registration Lambda function...")
         
@@ -81,6 +83,14 @@ class UserLambdas(Construct):
 
         print(f"Creating delete music content Lambda function...")
         self.delete_music_content_function = self._create_delete_music_content_function()
+
+        print(f"Creating notifications Lambda function...")
+        self.notify_subscribers_function = self._create_notify_subscribers_function()
+
+        print(f"Creating get notifications Lambda function...")
+        self.get_notifications_function = self._create_get_notifications_function()
+
+        
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -200,6 +210,26 @@ class UserLambdas(Construct):
             }
         )
     
+    def _create_get_notifications_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all notifications"""
+        
+        return _lambda.Function(
+            self,
+            "GetNotificationsFunction",
+            function_name=f"{self.config.app_name}-GetNotifications",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_notifications"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'NOTIFICATIONS_TABLE': self.notifications_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
+    
     def _create_get_subscriptions_function(self) -> _lambda.Function:
         """Create Lambda function for getting all subscriptions"""
         
@@ -275,6 +305,28 @@ class UserLambdas(Construct):
                 'APP_NAME': self.config.app_name
             }
         )
+
+    def _create_notify_subscribers_function(self) -> _lambda.Function:
+        """Create Lambda function for creating subscription"""
+        
+        return _lambda.Function(
+            self,
+            "NotifySubscribersFunction",
+            function_name=f"{self.config.app_name}-NotifySubscribers", 
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/notify_subscribers"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'NOTIFICATIONS_TABLE': self.notifications_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
+    
+
 
     def _create_delete_subscription_function(self) -> _lambda.Function:
         """Create Lambda function for deleting subscription"""
@@ -438,11 +490,17 @@ class UserLambdas(Construct):
         self.music_content_table.grant_read_data(self.get_music_content_function)
 
         self.music_content_table.grant_read_write_data(self.delete_music_content_function)
-
-        self.music_bucket.grant_read_write(self.create_music_content_function)
-        self.music_bucket.grant_read(self.get_music_content_function)
-        self.music_bucket.grant_read_write(self.delete_music_content_function)
         
+        self.notifications_table.grant_read_write_data(self.notify_subscribers_function)
+
+        self.notifications_table.grant_read_data(self.get_notifications_function)
+        
+        self.music_bucket.grant_read_write(self.create_music_content_function)
+        
+        self.music_bucket.grant_read(self.get_music_content_function)
+        
+        self.music_bucket.grant_read_write(self.delete_music_content_function)
+
         print("Permissions granted successfully")
     
     

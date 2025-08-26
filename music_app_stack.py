@@ -39,6 +39,7 @@ class MusicAppStack(Stack):
             database.subscriptions_table,
             database.music_content_table,
             s3.music_bucket
+            database.notifications_table
         )
         
         # Step 4: Create API Gateway
@@ -61,6 +62,8 @@ class MusicAppStack(Stack):
             user_lambdas.create_music_content_function,
             user_lambdas.update_music_content_function,
             user_lambdas.delete_music_content_function
+            user_lambdas.notify_subscribers_function,
+            user_lambdas.get_notifications_function
         )
         
         # Step 5: Create outputs (no changes needed here)

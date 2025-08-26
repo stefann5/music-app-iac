@@ -106,7 +106,7 @@ def store_subscription(subscription_data):
         raise
     except ValueError as e:
         # Re-raise custom validation error
-        return create_error_response(400, str(e))  
+        return create_error_response(400, str(e), 'You are already subscribed to selected content!')  
     except Exception as e:
         logger.error(f"Error storing subscription: {str(e)}")
         raise

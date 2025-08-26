@@ -15,48 +15,47 @@ dynamodb = boto3.resource('dynamodb')
 def handler(event, context):
     """
     Get All Artists Handler
-    Protected endpoint for retrieving all subscriptions
+    Protected endpoint for retrieving all notifications
     """
     
-    logger.info("Get all subscriptions request received")
+    logger.info("Get all notifications request received")
     
     try:
         # Parse query parameters
         query_params = event.get('queryStringParameters') or {}
         limit = int(query_params.get('limit', 50))  # Default limit of 50
         last_key = query_params.get('lastKey')  # For pagination
-        username = query_params.get('username')
-        targetName = query_params.get('targetName')
+        subscriber = query_params.get('subscriber')
 
         # Validate limit
         if limit > 100:
             limit = 100  # Maximum limit of 100
         
-        subscriptions_data = get_subscriptions(limit, last_key, username, targetName)
+        notifications_data = get_notifications(limit, last_key, subscriber)
         
         
-        logger.info(f"Retrieved {len(subscriptions_data['subscriptions'])} subscriptions")
+        logger.info(f"Retrieved {len(notifications_data['notifications'])} notifications")
         
         response_data = {
-            'message': 'Subscriptions retrieved successfully',
-            'subscriptions': subscriptions_data['subscriptions'],
-            'count': len(subscriptions_data['subscriptions']),
-            'hasMore': subscriptions_data.get('hasMore', False)
+            'message': 'Notifications retrieved successfully',
+            'notifications': notifications_data['notifications'],
+            'count': len(notifications_data['notifications']),
+            'hasMore': notifications_data.get('hasMore', False)
         }
         
-        if subscriptions_data.get('lastKey'):
-            response_data['lastKey'] = subscriptions_data['lastKey']
+        if notifications_data.get('lastKey'):
+            response_data['lastKey'] = notifications_data['lastKey']
         
         return create_success_response(200, response_data)
         
     except Exception as e:
-        logger.error(f"Get subscriptions error: {str(e)}")
+        logger.error(f"Get notifications error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def get_subscriptions(limit, last_key=None, username=None, targetName=None):
-    """Get subscriptions from DynamoDB with optional pagination and filtering"""
+def get_notifications(limit, last_key=None, subscriber=None):
+    """Get notifications from DynamoDB with optional pagination and filtering"""
     try:
-        table = dynamodb.Table(os.environ['SUBSCRIPTIONS_TABLE'])
+        table = dynamodb.Table(os.environ['NOTIFICATIONS_TABLE'])
         
             # Scan parameters
         scan_params = {
@@ -64,13 +63,9 @@ def get_subscriptions(limit, last_key=None, username=None, targetName=None):
         }
 
         # Add username or targetName filter if specified
-        if username:
-            scan_params['FilterExpression'] = 'contains(username, :username)'
-            scan_params['ExpressionAttributeValues'] = {':username': username}
-
-        if targetName:
-            scan_params['FilterExpression'] = 'contains(targetName, :targetName)'
-            scan_params['ExpressionAttributeValues'] = {':targetName': targetName}
+        if subscriber:
+            scan_params['FilterExpression'] = 'contains(subscriber, :subscriber)'
+            scan_params['ExpressionAttributeValues'] = {':subscriber': subscriber}
         
         # Add pagination if last key is provided
         if last_key:
@@ -86,16 +81,16 @@ def get_subscriptions(limit, last_key=None, username=None, targetName=None):
         response = table.scan(**scan_params)
         
         # Transform artists data for frontend
-        subscriptions = []
+        notifications = []
         for item in response.get('Items', []):
-            subscription = transform_subscription_for_response(item)
-            subscriptions.append(subscription)
+            notification = transform_notification_for_response(item)
+            notifications.append(notification)
         
         # Sort by name for consistent ordering
-        subscriptions.sort(key=lambda x: x['targetName'].lower())
+        notifications.sort(key=lambda x: x['timestamp'].lower())
         
         result = {
-            'subscriptions': subscriptions,
+            'notifications': notifications,
             'hasMore': 'LastEvaluatedKey' in response
         }
         
@@ -110,16 +105,17 @@ def get_subscriptions(limit, last_key=None, username=None, targetName=None):
         return result
         
     except Exception as e:
-        logger.error(f"Error getting subscriptions: {str(e)}")
+        logger.error(f"Error getting notifications: {str(e)}")
         raise
 
-def transform_subscription_for_response(item):
+def transform_notification_for_response(item):
     """Transform DynamoDB item to frontend-friendly format"""
     return {
-        'subscriptionId': item.get('subscriptionId'),
-        'username': item.get('username'), 
-        'targetId': item.get('targetId'),
-        'targetName': item.get('targetName'),
+        'notificationId': item.get('notificationId'),
+        'subscriber': item.get('subscriber'), 
+        'contentId': item.get('contentId'),
+        'content': item.get('content'),
+        'message': item.get('message'),
         'timestamp': item.get('timestamp')
     }
 
