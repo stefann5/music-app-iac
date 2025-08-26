@@ -90,7 +90,11 @@ class UserLambdas(Construct):
         print(f"Creating get notifications Lambda function...")
         self.get_notifications_function = self._create_get_notifications_function()
 
-        
+        print(f"Creating is_rated_function Lambda function...")
+        self.is_rated_function = self._create_is_rated_function()
+
+        print(f"Creating is_subscribed_function Lambda function...")
+        self.is_subscribed_function = self._create_is_subscribed_function()
         
         # Grant permissions (your existing code)
         self._grant_permissions()
@@ -264,6 +268,44 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'RATINGS_TABLE': self.ratings_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
+    def _create_is_rated_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all ratings"""
+        
+        return _lambda.Function(
+            self,
+            "IsRatedFunction",
+            function_name=f"{self.config.app_name}-IsRated",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/is_rated"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'RATINGS_TABLE': self.ratings_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
+    def _create_is_subscribed_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all ratings"""
+        
+        return _lambda.Function(
+            self,
+            "IsSubscribedFunction",
+            function_name=f"{self.config.app_name}-IsSubscribed",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/is_subscribed"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
                 'APP_NAME': self.config.app_name
             }
         )
@@ -490,6 +532,10 @@ class UserLambdas(Construct):
 
         self.ratings_table.grant_read_data(self.get_ratings_function)
 
+        self.subscriptions_table.grant_read_data(self.is_subscribed_function)
+
+        self.ratings_table.grant_read_data(self.is_rated_function)
+
         self.music_content_table.grant_read_write_data(self.create_music_content_function)
 
         self.music_content_table.grant_read_write_data(self.update_music_content_function)
@@ -509,6 +555,8 @@ class UserLambdas(Construct):
         self.music_bucket.grant_read_write(self.delete_music_content_function)
 
         self.music_bucket.grant_read_write(self.update_music_content_function)
+
+        
 
         print("Permissions granted successfully")
     

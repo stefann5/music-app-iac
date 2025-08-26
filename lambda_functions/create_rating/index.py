@@ -89,7 +89,6 @@ def store_rating(rating_data):
                 ':songId': songId
             }
 )
-        
         if response['Items']:
             existing_rating = response['Items'][0]
             logger.warning(f"Duplicate rating found: {existing_rating['songId']}")

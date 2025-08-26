@@ -63,7 +63,9 @@ class MusicAppStack(Stack):
             user_lambdas.update_music_content_function,
             user_lambdas.delete_music_content_function,
             user_lambdas.notify_subscribers_function,
-            user_lambdas.get_notifications_function
+            user_lambdas.get_notifications_function,
+            user_lambdas.is_rated_function,
+            user_lambdas.is_subscribed_function
         )
         
         # Step 5: Create outputs (no changes needed here)

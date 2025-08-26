@@ -30,8 +30,9 @@ class ApiConstruct(Construct):
         update_music_content_function: _lambda.Function,
         delete_music_content_function: _lambda.Function,
         notify_subscribers_function: _lambda.Function,
-        get_notifications_function: _lambda.Function
-
+        get_notifications_function: _lambda.Function,
+        is_rated_function: _lambda.Function,
+        is_subscribed_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -53,6 +54,8 @@ class ApiConstruct(Construct):
         self.delete_music_content_function = delete_music_content_function
         self.notify_subscribers_function = notify_subscribers_function
         self.get_notifications_function = get_notifications_function
+        self.is_rated_function = is_rated_function
+        self.is_subscribed_function = is_subscribed_function
         
         print(f"Creating API Gateway...")
         
@@ -185,6 +188,18 @@ class ApiConstruct(Construct):
             ]
         )
        
+        is_rated_resource = rating_resource.add_resource('check')
+
+        is_rated_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.is_rated_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
         artists_resource.add_method(
             'GET',
@@ -246,6 +261,20 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
+
+        is_subscribed_resource = subscription_resource.add_resource('check')
+
+        is_subscribed_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.is_subscribed_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
 
         subscription_id_resource = subscription_resource.add_resource('{subscriptionId}')
 
@@ -325,8 +354,10 @@ class ApiConstruct(Construct):
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
         print("- GET /subscription (protected, all users)")
+        print("- GET /subscription/check (protected, all users)")
         print("- GET /notification (protected, all users)")
         print("- GET /rating (implemented)")
+        print("- GET /rating/check (implemented)")
         print("- DELETE /subscription (protected, all users)")
         print("- GET /music-content (protected, all users)")
         print("- POST /music-content (protected, admin only)")
