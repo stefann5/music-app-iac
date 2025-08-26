@@ -20,6 +20,8 @@ class AppConfig:
     region: str
     max_file_size: int
     allowed_file_types: List[str]
+    max_image_size: int
+    allowed_image_types: List[str]
 
     @property
     def music_bucket_name(self) -> str:
@@ -56,5 +58,11 @@ def get_app_config() -> AppConfig:
             'audio/ogg',         # OGG
             'audio/aac',         # AAC
             'audio/mp4'          # M4A
-        ]
+        ],
+        max_image_size = 5 * 1024 * 1024,  # 5 MB
+        allowed_image_types=[
+            'image/jpeg',        # JPEG
+            'image/png',         # PNG
+            'image/webp'          # WEBP
+        ],
     )

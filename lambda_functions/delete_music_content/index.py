@@ -45,13 +45,14 @@ def handler(event, context):
                 }
             item = response['Item']
             s3_key = item.get('s3Key')
+            image_s3_key = item.get('imageS3Key')
             title = item.get('title', 'Unknown')
         except Exception as e:
             return {
                 'statusCode': 500,
                 'body': json.dumps({'message': f'Error retrieving item from DynamoDB: {str(e)}'})
             }
-        #Delete from S3
+        #Delete from S3 audio file
         s3_deleted = False
         if s3_key:
             try:
@@ -60,6 +61,13 @@ def handler(event, context):
                 print(f"S3 object {s3_key} deleted successfully.")
             except Exception as e:
                 print(f"Error deleting S3 object {s3_key}: {str(e)}")
+        #Delete from S3 cover image file
+        if image_s3_key:
+            try:
+                s3.delete_object(Bucket=bucket_name, Key=image_s3_key)
+                print(f"S3 object {image_s3_key} deleted successfully.")
+            except Exception as e:
+                print(f"Error deleting S3 object {image_s3_key}: {str(e)}")
         #Delete from DynamoDB
         try:
             table.delete_item(Key={'contentId': content_id})

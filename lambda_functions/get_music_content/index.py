@@ -85,7 +85,7 @@ def _generate_stream_url(item: Dict[str, Any], bucket_name: str, expires_in: int
 def _sanitize_item(item):
     safe_item = dict(item)
     #Remove sensitive fields
-    safe_fields_to_remove = ['bucketName', 's3Key']
+    safe_fields_to_remove = ['bucketName', 's3Key', 'coverImageS3Key']
     for field in safe_fields_to_remove:
         safe_item.pop(field, None)
     #Convert Decimal types to float for JSON serialization
