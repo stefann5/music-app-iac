@@ -26,7 +26,14 @@ def handler(event, context):
         limit = int(query_params.get('limit', 50))  # Default limit of 50
         last_key = query_params.get('lastKey')  # For pagination
         songId = query_params.get('songId')
-        username = query_params.get('username')
+
+        username = None
+
+        if songId is None:
+            request_context = event.get('requestContext', {})
+            authorizer = request_context.get('authorizer', {})
+            username = authorizer.get('username', {})
+
 
         # Validate limit
         if limit > 100:
@@ -69,7 +76,7 @@ def get_ratings(limit, last_key=None, songId=None, username=None):
             scan_params['ExpressionAttributeValues'] = {':songId': songId}
         if username:
             scan_params['FilterExpression'] = 'contains(username, :username)'
-            scan_params['ExpressionAttributeValues'] = {':username': songId}
+            scan_params['ExpressionAttributeValues'] = {':username': username}
         
         # Add pagination if last key is provided
         if last_key:

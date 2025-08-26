@@ -59,10 +59,11 @@ def create_subscription_record(subscription_id, input_data, event):
     # Get creator info from authorizer context
     request_context = event.get('requestContext', {})
     authorizer = request_context.get('authorizer', {})
+    subscriber = authorizer.get('username', {})
     
     return {
         'subscriptionId': subscription_id,
-        'username': input_data['username'],
+        'username': subscriber,
         'subscriptionType': input_data['subscriptionType'],
         'targetId': input_data['targetId'],
         'targetName': input_data['targetName'],

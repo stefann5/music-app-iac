@@ -59,11 +59,12 @@ def create_rating_record(rating_id, input_data, event):
     # Get creator info from authorizer context
     request_context = event.get('requestContext', {})
     authorizer = request_context.get('authorizer', {})
+    username = authorizer.get('username', {})
     
     return {
         'ratingId': rating_id,
         'songId': input_data['songId'],
-        'username': input_data['username'],
+        'username': username,
         'stars': input_data['stars'],
         'timestamp': datetime.now().isoformat()
     }
