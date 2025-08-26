@@ -43,12 +43,15 @@ def handler(event, context):
         parts = _parse_multipart(body, boundary)
         metadata_part = None
         file_part = None
+        cover_image_part = None
 
         for part in parts:
             if part["name"] == "metadata":
                 metadata_part = json.loads(part["data"].decode('utf-8'))
             elif part["name"] == "audioFile":
                 file_part = part
+            elif part["name"] == "coverImage":
+                cover_image_part = part
 
         if not metadata_part or not file_part:
             return {
@@ -97,6 +100,42 @@ def handler(event, context):
             }
         )
 
+        allowed_image_types = os.environ['ALLOWED_IMAGE_TYPES'].split(',')
+        if cover_image_part:
+            image_content_type = cover_image_part.get("content_type", "")
+            if image_content_type not in allowed_image_types:
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"message": f"Unsupported cover image file type: {image_content_type}"})
+                }
+
+            max_image_size = int(os.environ.get('MAX_IMAGE_SIZE', '5242880')) # Default 5MB
+            image_size = len(cover_image_part["data"])
+            if image_size > max_image_size:
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"message": f"Cover image size exceeds the maximum limit of {max_image_size} bytes"})
+                }
+            
+            image_extension = _get_file_extension(cover_image_part['filename'], image_content_type)
+            cover_image_key = f"music-content/{content_id}/cover{image_extension}"
+
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=cover_image_key,
+                Body=cover_image_part["data"],
+                ContentType=image_content_type,
+                Metadata={
+                    'contentId': content_id,
+                    'originalFilename': cover_image_part['filename'],
+                    'uploadedAt': datetime.now(timezone.utc).isoformat()
+                }
+            )
+            cover_image_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': cover_image_key},
+                ExpiresIn=31536000 # 1 year
+            )
         current_time = datetime.now(timezone.utc).isoformat()
         item = {
             'contentId': content_id,
@@ -111,24 +150,34 @@ def handler(event, context):
             'lastModified': current_time
         }
 
-        optional_fields = ['genre', 'album', 'coverImage']
+        if cover_image_key:
+            item['coverImageS3Key'] = cover_image_key
+            item['coverImageUrl'] = cover_image_url
+            item['coverImageContentType'] = image_content_type
+        
+        optional_fields = ['genre', 'album']
         for field in optional_fields:
             if field in metadata_part and metadata_part[field]:
                 item[field] = metadata_part[field]
 
         table.put_item(Item=item)
+        response_data = {
+            "message": "Music content created successfully",
+            "contentId": content_id,
+            "title": item['title'],
+            "filename": item['filename'],
+            "fileType": item['fileType'],
+            "fileSize": item['fileSize'],
+            "createdAt": item['createdAt']
+        }
+
+        if cover_image_key:
+            response_data['coverImageUrl'] = cover_image_url
+        
         print(f"Music content '{content_id}' created successfully.")
         return {
             "statusCode": 201,
-            "body": json.dumps({
-                "message": "Music content created successfully",
-                "contentId": content_id,
-                "title": item['title'],
-                "filename": item['filename'],
-                "fileType": item['fileType'],
-                "fileSize": item['fileSize'],
-                "createdAt": item['createdAt']
-                })
+            "body": json.dumps(response_data)
         }
     except json.JSONDecodeError:
         return {
@@ -204,3 +253,13 @@ def is_admin_user(event):
     except Exception as e:
         print(f"Error checking admin role: {str(e)}")
         return False
+    
+def _get_file_extension(filename, content_type):
+    if content_type == 'image/jpeg':
+        return '.jpg'
+    elif content_type == 'image/png':
+        return '.png'
+    elif content_type == 'image/webp':
+        return '.webp'
+    else:
+        return '.' + filename.split('.')[-1] if '.' in filename else '.jpg'

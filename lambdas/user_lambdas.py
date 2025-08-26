@@ -21,7 +21,7 @@ class UserLambdas(Construct):
         ratings_table,
         subscriptions_table,
         music_content_table,
-        music_bucket
+        music_bucket,
         notifications_table
     ):
         super().__init__(scope, id)
@@ -362,7 +362,9 @@ class UserLambdas(Construct):
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
                 'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
                 'MAX_FILE_SIZE': str(self.config.max_file_size),
-                'ALLOWED_FILE_TYPES': ','.join(self.config.allowed_file_types)
+                'ALLOWED_FILE_TYPES': ','.join(self.config.allowed_file_types),
+                'ALLOWED_IMAGE_TYPES': ','.join(self.config.allowed_image_types),
+                'MAX_IMAGE_SIZE': str(self.config.max_image_size)
             }
         )
 
@@ -378,7 +380,12 @@ class UserLambdas(Construct):
             memory_size=self.config.lambda_memory,
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
-                'MUSIC_CONTENT_TABLE': self.music_content_table.table_name
+                'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
+                'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
+                'MAX_FILE_SIZE': str(self.config.max_file_size),
+                'ALLOWED_FILE_TYPES': ','.join(self.config.allowed_file_types),
+                'ALLOWED_IMAGE_TYPES': ','.join(self.config.allowed_image_types),
+                'MAX_IMAGE_SIZE': str(self.config.max_image_size)
             }
         )
 
@@ -500,6 +507,8 @@ class UserLambdas(Construct):
         self.music_bucket.grant_read(self.get_music_content_function)
         
         self.music_bucket.grant_read_write(self.delete_music_content_function)
+
+        self.music_bucket.grant_read_write(self.update_music_content_function)
 
         print("Permissions granted successfully")
     

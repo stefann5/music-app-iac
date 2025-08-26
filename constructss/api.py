@@ -28,7 +28,7 @@ class ApiConstruct(Construct):
         get_music_content_function: _lambda.Function,
         create_music_content_function: _lambda.Function,
         update_music_content_function: _lambda.Function,
-        delete_music_content_function: _lambda.Function
+        delete_music_content_function: _lambda.Function,
         notify_subscribers_function: _lambda.Function,
         get_notifications_function: _lambda.Function
 
