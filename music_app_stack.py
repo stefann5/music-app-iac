@@ -8,6 +8,7 @@ from constructss.auth import AuthConstruct
 from constructss.database import DatabaseConstruct
 from constructss.api import ApiConstruct
 from lambdas.user_lambdas import UserLambdas  # ← NEW IMPORT
+from constructss.s3 import S3Construct
 
 class MusicAppStack(Stack):
     
@@ -23,6 +24,7 @@ class MusicAppStack(Stack):
         
         # Step 2: Create database tables (DynamoDB)
         database = DatabaseConstruct(self, "Database", config)
+        s3 = S3Construct(self, "S3", config)
         
         # Step 3: Create Lambda functions
         user_lambdas = UserLambdas(  # ← CHANGED FROM ComputeConstruct
@@ -35,6 +37,8 @@ class MusicAppStack(Stack):
             database.artists_table,
             database.ratings_table,
             database.subscriptions_table,
+            database.music_content_table,
+            s3.music_bucket
             database.notifications_table
         )
         
@@ -54,6 +58,10 @@ class MusicAppStack(Stack):
             user_lambdas.create_subscription_function,
             user_lambdas.delete_subscription_function,
             user_lambdas.get_ratings_function,
+            user_lambdas.get_music_content_function,
+            user_lambdas.create_music_content_function,
+            user_lambdas.update_music_content_function,
+            user_lambdas.delete_music_content_function
             user_lambdas.notify_subscribers_function,
             user_lambdas.get_notifications_function
         )
