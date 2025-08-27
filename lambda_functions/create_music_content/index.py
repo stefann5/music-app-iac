@@ -142,7 +142,7 @@ def handler(event, context):
             cover_image_url = s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': bucket_name, 'Key': cover_image_key},
-                ExpiresIn=31536000 # 1 year
+                ExpiresIn=604800 # 1 year
             )
         current_time = datetime.now(timezone.utc).isoformat()
         item = {

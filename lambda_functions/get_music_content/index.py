@@ -68,6 +68,26 @@ def _get_content_by_id(table, content_id, bucket_name):
             'body': json.dumps({'error': 'Failed to get content by ID'})
         }
     
+def _generate_cover_image_url(item: Dict[str, Any], bucket_name: str, expires_in: int = 3600):
+    try:
+        cover_image_s3_key = item.get('coverImageS3Key')
+        if not cover_image_s3_key:
+            return None
+        presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket_name, 
+                'Key': cover_image_s3_key,
+                'ResponseContentType': item.get('coverImageContentType', 'image/jpeg'),
+                'ResponseContentDisposition': f'inline; filename="cover_{item["contentId"]}.jpg"'
+            },
+            ExpiresIn=expires_in # 1 hour
+        )
+        return presigned_url
+    except Exception as e:
+        print(f"Error generating cover image presigned URL: {str(e)}")
+        return None
+
 def _generate_stream_url(item: Dict[str, Any], bucket_name: str, expires_in: int = 3600):
     try:
         persigned_url = s3_client.generate_presigned_url(
@@ -190,7 +210,18 @@ def _get_all_content(table, query_params):
             scan_kwargs['ExclusiveStartKey'] = { 'contentId': last_key }
 
         response = table.scan(**scan_kwargs)
-        items = [_sanitize_item(item) for item in response.get('Items', [])]
+
+        items = []
+        for item in response.get('Items', []):
+            safe_item = _sanitize_item(item)
+            safe_item['streamURL'] = _generate_stream_url(item, item.get('bucketName'))
+
+            if item.get('coverImageS3Key'):
+                safe_item['coverImageUrl'] = _generate_cover_image_url(item, item.get('bucketName'))
+            else:
+                safe_item['coverImageUrl'] = None
+            
+            items.append(safe_item)
 
         result = {
             'content': items,
