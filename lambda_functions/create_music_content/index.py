@@ -158,7 +158,7 @@ def handler(event, context):
             'lastModified': current_time
         }
 
-        if cover_image_key:
+        if cover_image_part and cover_image_key:
             item['coverImageS3Key'] = cover_image_key
             item['coverImageUrl'] = cover_image_url
             item['coverImageContentType'] = image_content_type
@@ -179,7 +179,7 @@ def handler(event, context):
             "createdAt": item['createdAt']
         }
 
-        if cover_image_key:
+        if cover_image_part and cover_image_key:
             response_data['coverImageUrl'] = cover_image_url
         
         print(f"Music content '{content_id}' created successfully.")

@@ -23,13 +23,14 @@ def handler(event, context):
         limit = int(query_params.get('limit', 50))  # Default limit of 50
         last_key = query_params.get('lastKey')  # For pagination
         genre_filter = query_params.get('genre')  # Optional genre filter
+        artist_id = query_params.get('artistId') # Optional artistId filter for finding unique artist
         
         # Validate limit
         if limit > 100:
             limit = 100  # Maximum limit of 100
         
         # Get artists from DynamoDB
-        artists_data = get_artists(limit, last_key, genre_filter)
+        artists_data = get_artists(limit, last_key, genre_filter, artist_id)
         
         logger.info(f"Retrieved {len(artists_data['artists'])} artists")
         
@@ -49,7 +50,7 @@ def handler(event, context):
         logger.error(f"Get artists error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def get_artists(limit, last_key=None, genre_filter=None):
+def get_artists(limit, last_key=None, genre_filter=None, artist_id=None):
     """Get artists from DynamoDB with optional pagination and filtering"""
     try:
         table = dynamodb.Table(os.environ['ARTISTS_TABLE'])
@@ -67,6 +68,10 @@ def get_artists(limit, last_key=None, genre_filter=None):
             scan_params['FilterExpression'] = '#status = :status AND contains(genres, :genre)'
             scan_params['ExpressionAttributeValues'][':genre'] = genre_filter.lower()
         
+        if artist_id:
+            scan_params['FilterExpression'] = '#status = :status AND contains(artistId, :artistId)'
+            scan_params['ExpressionAttributeValues'][':artistId'] = artist_id
+
         # Add pagination if last key is provided
         if last_key:
             try:
