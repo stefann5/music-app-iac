@@ -14,6 +14,7 @@ def handler(event, context):
         if not is_admin_user(event):
             return {
                 'statusCode': 403,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Access denied. Administrator role required.'})
             }
         
@@ -37,6 +38,7 @@ def handler(event, context):
         else:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Invalid content-type header"})
             }
         
@@ -56,6 +58,7 @@ def handler(event, context):
         if not metadata_part or not file_part:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Missing metadata or audioFile part"})
             }
         
@@ -64,6 +67,7 @@ def handler(event, context):
             if field not in metadata_part:
                 return {
                     "statusCode": 400,
+                    'headers': get_cors_headers(),
                     "body": json.dumps({"message": f"Missing required field: {field}"})
                 }
         
@@ -72,6 +76,7 @@ def handler(event, context):
         if file_content_type not in allowed_types:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": f"Unsupported audio file type: {file_content_type}"})
             }
         
@@ -82,6 +87,7 @@ def handler(event, context):
         if file_size > max_size:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": f"File size exceeds the maximum limit of {max_size} bytes"})
             }
         
@@ -106,6 +112,7 @@ def handler(event, context):
             if image_content_type not in allowed_image_types:
                 return {
                     "statusCode": 400,
+                    'headers': get_cors_headers(),
                     "body": json.dumps({"message": f"Unsupported cover image file type: {image_content_type}"})
                 }
 
@@ -114,6 +121,7 @@ def handler(event, context):
             if image_size > max_image_size:
                 return {
                     "statusCode": 400,
+                    'headers': get_cors_headers(),
                     "body": json.dumps({"message": f"Cover image size exceeds the maximum limit of {max_image_size} bytes"})
                 }
             
@@ -134,7 +142,7 @@ def handler(event, context):
             cover_image_url = s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': bucket_name, 'Key': cover_image_key},
-                ExpiresIn=31536000 # 1 year
+                ExpiresIn=604800 # 1 year
             )
         current_time = datetime.now(timezone.utc).isoformat()
         item = {
@@ -177,17 +185,20 @@ def handler(event, context):
         print(f"Music content '{content_id}' created successfully.")
         return {
             "statusCode": 201,
+            'headers': get_cors_headers(),
             "body": json.dumps(response_data)
         }
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
+            'headers': get_cors_headers(),
             "body": json.dumps({"message": "Invalid JSON in metadata"})
         }
     except Exception as e:
         print(f"Error: {str(e)}")
         return {
             "statusCode": 500,
+            'headers': get_cors_headers(),
             "body": json.dumps({"message": "Internal server error"})
         }
 
@@ -263,3 +274,12 @@ def _get_file_extension(filename, content_type):
         return '.webp'
     else:
         return '.' + filename.split('.')[-1] if '.' in filename else '.jpg'
+    
+def get_cors_headers():
+    """Get CORS headers for API responses"""
+    return {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Content-Type': 'application/json'
+    }

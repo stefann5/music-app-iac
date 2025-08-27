@@ -10,6 +10,7 @@ def handler(event, context):
         if not is_admin_user(event):
             return {
                 'statusCode': 403,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Access denied. Administrator role required.'})
             }
 
@@ -28,11 +29,13 @@ def handler(event, context):
             except json.JSONDecodeError:
                 return {
                     'statusCode': 400,
+                    'headers': get_cors_headers(),
                     'body': json.dumps({'message': 'Invalid JSON in request body'})
                 }
         if not content_id:
             return {
                 'statusCode': 400,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'contentId is required in query parameters or body'})
             }
         
@@ -41,6 +44,7 @@ def handler(event, context):
             if 'Item' not in response:
                 return {
                     'statusCode': 404,
+                    'headers': get_cors_headers(),
                     'body': json.dumps({'message': 'Content not found'})
                 }
             item = response['Item']
@@ -50,6 +54,7 @@ def handler(event, context):
         except Exception as e:
             return {
                 'statusCode': 500,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': f'Error retrieving item from DynamoDB: {str(e)}'})
             }
         #Delete from S3 audio file
@@ -74,6 +79,7 @@ def handler(event, context):
             print(f"DynamoDB item with contentId {content_id} deleted successfully.")
             return {
                 'statusCode': 200,
+                'headers': get_cors_headers(),
                 'body': json.dumps({
                     'message': f'Content "{title}" deleted successfully.',
                 })
@@ -82,12 +88,14 @@ def handler(event, context):
             print(f"Error deleting item from DynamoDB: {str(e)}")
             return {
                 'statusCode': 500,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': f'Failed to delete item from DynamoDB: {str(e)}', 's3_deleted': s3_deleted})
             }
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return {
             'statusCode': 500,
+            'headers': get_cors_headers(),
             'body': json.dumps({'message': f'Internal server error: {str(e)}'})
         }
     
@@ -105,3 +113,12 @@ def is_admin_user(event):
     except Exception as e:
         print(f"Error checking admin role: {str(e)}")
         return False
+    
+def get_cors_headers():
+    """Get CORS headers for API responses"""
+    return {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Content-Type': 'application/json'
+    }

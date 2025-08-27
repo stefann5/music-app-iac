@@ -35,6 +35,7 @@ def handler(event, context):
         print(f"Error processing request: {e}")
         return {
             'statusCode': 500,
+            'headers': get_cors_headers(),
             'body': json.dumps({'error': str(e)})
         }
 
@@ -45,6 +46,7 @@ def _get_content_by_id(table, content_id, bucket_name):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'error': 'Content not found'})
             }
         item = response['Item']
@@ -55,15 +57,37 @@ def _get_content_by_id(table, content_id, bucket_name):
 
         return {
             'statusCode': 200,
+            'headers': get_cors_headers(),
             'body': json.dumps({'content': safe_item})
         }
     except Exception as e:
         print(f"Error fetching content by ID: {e}")
         return {
             'statusCode': 500,
+            'headers': get_cors_headers(),
             'body': json.dumps({'error': 'Failed to get content by ID'})
         }
     
+def _generate_cover_image_url(item: Dict[str, Any], bucket_name: str, expires_in: int = 3600):
+    try:
+        cover_image_s3_key = item.get('coverImageS3Key')
+        if not cover_image_s3_key:
+            return None
+        presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket_name, 
+                'Key': cover_image_s3_key,
+                'ResponseContentType': item.get('coverImageContentType', 'image/jpeg'),
+                'ResponseContentDisposition': f'inline; filename="cover_{item["contentId"]}.jpg"'
+            },
+            ExpiresIn=expires_in # 1 hour
+        )
+        return presigned_url
+    except Exception as e:
+        print(f"Error generating cover image presigned URL: {str(e)}")
+        return None
+
 def _generate_stream_url(item: Dict[str, Any], bucket_name: str, expires_in: int = 3600):
     try:
         persigned_url = s3_client.generate_presigned_url(
@@ -126,12 +150,14 @@ def _get_content_by_artist(artist_id, table, query_params):
 
         return {
             'statusCode': 200,
+            'headers': get_cors_headers(),
             'body': json.dumps(result)
         }
     except Exception as e:
         print(f"Error fetching content by artist: {e}")
         return {
             'statusCode': 500,
+            'headers': get_cors_headers(),
             'body': json.dumps({'error': 'Failed to get content by artist'})
         }
 
@@ -160,12 +186,14 @@ def _search_content_by_title(search_query, table, query_params):
 
         return {
             'statusCode': 200,
+            'headers': get_cors_headers(),
             'body': json.dumps(result)
         }
     except Exception as e:
         print(f"Error searching content by title: {e}")
         return {
             'statusCode': 500,
+            'headers': get_cors_headers(),
             'body': json.dumps({'error': 'Failed to search content by title'})
         }
 
@@ -182,7 +210,18 @@ def _get_all_content(table, query_params):
             scan_kwargs['ExclusiveStartKey'] = { 'contentId': last_key }
 
         response = table.scan(**scan_kwargs)
-        items = [_sanitize_item(item) for item in response.get('Items', [])]
+
+        items = []
+        for item in response.get('Items', []):
+            safe_item = _sanitize_item(item)
+            safe_item['streamURL'] = _generate_stream_url(item, item.get('bucketName'))
+
+            if item.get('coverImageS3Key'):
+                safe_item['coverImageUrl'] = _generate_cover_image_url(item, item.get('bucketName'))
+            else:
+                safe_item['coverImageUrl'] = None
+            
+            items.append(safe_item)
 
         result = {
             'content': items,
@@ -194,12 +233,14 @@ def _get_all_content(table, query_params):
 
         return {
             'statusCode': 200,
+            'headers': get_cors_headers(),
             'body': json.dumps(result)
         }
     except Exception as e:
         print(f"Error fetching all content: {e}")
         return {
             'statusCode': 500,
+            'headers': get_cors_headers(),
             'body': json.dumps({'error': 'Failed to get all content'})
         }
 
@@ -208,6 +249,7 @@ def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str
     if not content_id:
         return {
             'statusCode': 400,
+            'headers': get_cors_headers(),
             'body': json.dumps({'error': 'contentId is required for streaming'})
         }
     
@@ -217,6 +259,7 @@ def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str
         if 'Item' not in response:
             return {
                 'statusCode': 404,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'error': 'Content not found'})
             }
         
@@ -225,6 +268,7 @@ def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str
         item = _sanitize_item(item)
         return {
             'statusCode': 200,
+            'headers': get_cors_headers(),
             'body': json.dumps({
                 'streamUrl': presigned_url,
                 'contentId': content_id,
@@ -243,5 +287,15 @@ def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str
         print(f"Error generating presigned URL: {str(e)}")
         return {
             'statusCode': 500,
+            'headers': get_cors_headers(),
             'body': json.dumps({'error': 'Failed to generate stream URL'})
         }
+    
+def get_cors_headers():
+    """Get CORS headers for API responses"""
+    return {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Content-Type': 'application/json'
+    }
