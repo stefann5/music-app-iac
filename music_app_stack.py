@@ -65,6 +65,9 @@ class MusicAppStack(Stack):
             user_lambdas.delete_music_content_function,
             user_lambdas.notify_subscribers_function,
             user_lambdas.get_notifications_function,
+            user_lambdas.is_rated_function,
+            user_lambdas.is_subscribed_function,
+            user_lambdas.get_feed_function,
             user_lambdas.discover_function,  # Enhanced discover with album support
             user_lambdas.create_album_function,  # NEW: Album management
             user_lambdas.get_albums_function     # NEW: Album retrieval

@@ -31,10 +31,12 @@ class ApiConstruct(Construct):
         delete_music_content_function: _lambda.Function,
         notify_subscribers_function: _lambda.Function,
         get_notifications_function: _lambda.Function,
+        is_rated_function: _lambda.Function,
+        is_subscribed_function: _lambda.Function,
+        get_feed_function: _lambda.Function,
         discover_function: _lambda.Function,  # Enhanced discover with album support
         create_album_function: _lambda.Function,  # NEW: Album creation
         get_albums_function: _lambda.Function     # NEW: Album retrieval
-
     ):
         super().__init__(scope, id)
         
@@ -56,6 +58,9 @@ class ApiConstruct(Construct):
         self.delete_music_content_function = delete_music_content_function
         self.notify_subscribers_function = notify_subscribers_function
         self.get_notifications_function = get_notifications_function
+        self.is_rated_function = is_rated_function
+        self.is_subscribed_function = is_subscribed_function
+        self.get_feed_function = get_feed_function
         self.discover_function = discover_function  # Enhanced discover with album support
         self.create_album_function = create_album_function  # NEW: Album creation
         self.get_albums_function = get_albums_function      # NEW: Album retrieval
@@ -205,6 +210,20 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
+       
+        is_rated_resource = rating_resource.add_resource('check')
+
+        is_rated_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.is_rated_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
 
         # Notification endpoints
         notification_resource = api.root.add_resource('notification')
@@ -258,6 +277,20 @@ class ApiConstruct(Construct):
             ]
         )
 
+        is_subscribed_resource = subscription_resource.add_resource('check')
+
+        is_subscribed_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.is_subscribed_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+
         subscription_id_resource = subscription_resource.add_resource('{subscriptionId}')
         subscription_id_resource.add_method(
             'DELETE',
@@ -285,6 +318,20 @@ class ApiConstruct(Construct):
             ]
         )
 
+        feed_resource = music_content_resource.add_resource('feed')
+        feed_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_feed_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+
+        #creating music content
         music_content_resource.add_method(
             'POST',
             apigateway.LambdaIntegration(self.create_music_content_function),
@@ -422,7 +469,11 @@ class ApiConstruct(Construct):
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
         print("- GET /subscription (protected, all users)")
+        print("- GET /subscription/check (protected, all users)")
         print("- GET /notification (protected, all users)")
+        print("- GET /rating (implemented)")
+        print("- GET /rating/check (implemented)")
+        print("- DELETE /subscription (protected, all users)")
         print("- GET /rating (protected, all users)")
         print("- DELETE /subscription/{subscriptionId} (protected, all users)")
         print("- GET /music-content (protected, all users)")

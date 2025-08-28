@@ -81,6 +81,9 @@ class UserLambdas(Construct):
         print(f"Creating get music content Lambda function...")
         self.get_music_content_function = self._create_get_music_content_function()
 
+        print(f"Creating get feed Lambda function...")
+        self.get_feed_function = self._create_get_feed_function()
+
         print(f"Creating delete music content Lambda function...")
         self.delete_music_content_function = self._create_delete_music_content_function()
 
@@ -90,6 +93,13 @@ class UserLambdas(Construct):
         print(f"Creating get notifications Lambda function...")
         self.get_notifications_function = self._create_get_notifications_function()
 
+        print(f"Creating is_rated_function Lambda function...")
+        self.is_rated_function = self._create_is_rated_function()
+
+        print(f"Creating is_subscribed_function Lambda function...")
+        self.is_subscribed_function = self._create_is_subscribed_function()
+        
+        # Grant permissions (your existing code)
         # NEW: Album management functions
         print(f"Creating create album Lambda function...")
         self.create_album_function = self._create_create_album_function()
@@ -276,6 +286,44 @@ class UserLambdas(Construct):
                 'APP_NAME': self.config.app_name
             }
         )
+    
+    def _create_is_rated_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all ratings"""
+        
+        return _lambda.Function(
+            self,
+            "IsRatedFunction",
+            function_name=f"{self.config.app_name}-IsRated",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/is_rated"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'RATINGS_TABLE': self.ratings_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
+    def _create_is_subscribed_function(self) -> _lambda.Function:
+        """Create Lambda function for getting all ratings"""
+        
+        return _lambda.Function(
+            self,
+            "IsSubscribedFunction",
+            function_name=f"{self.config.app_name}-IsSubscribed",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/is_subscribed"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
 
     def _create_create_rating_function(self) -> _lambda.Function:
         """Create Lambda function for creating ratings"""
@@ -410,6 +458,26 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
+                'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+    
+    def _create_get_feed_function(self) -> _lambda.Function:
+        return _lambda.Function(
+            self,
+            "GetFeedFunction",
+            function_name=f"{self.config.app_name}-GetFeed",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_feed"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
+                'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
+                'RATINGS_TABLE': self.ratings_table.table_name,
                 'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
                 'APP_NAME': self.config.app_name
             }
@@ -555,9 +623,22 @@ class UserLambdas(Construct):
         self.subscriptions_table.grant_read_data(self.get_subscriptions_function)
         self.subscriptions_table.grant_read_write_data(self.delete_subscription_function)
         self.ratings_table.grant_read_data(self.get_ratings_function)
+
+        self.subscriptions_table.grant_read_data(self.is_subscribed_function)
+
+        self.subscriptions_table.grant_read_data(self.get_feed_function)
+
+        self.ratings_table.grant_read_data(self.is_rated_function)
+
+        self.ratings_table.grant_read_data(self.get_feed_function)
+
         self.music_content_table.grant_read_write_data(self.create_music_content_function)
         self.music_content_table.grant_read_write_data(self.update_music_content_function)
         self.music_content_table.grant_read_data(self.get_music_content_function)
+
+        self.music_content_table.grant_read_data(self.get_feed_function)
+
+
         self.music_content_table.grant_read_write_data(self.delete_music_content_function)
         self.notifications_table.grant_read_write_data(self.notify_subscribers_function)
         self.notifications_table.grant_read_data(self.get_notifications_function)
@@ -568,6 +649,11 @@ class UserLambdas(Construct):
         self.music_bucket.grant_read_write(self.delete_music_content_function)
         self.music_bucket.grant_read_write(self.update_music_content_function)
 
+        self.music_bucket.grant_read_write(self.get_feed_function)
+
+        print("Permissions granted successfully")
+    
+    
         # Discover function permissions - read access to all content tables
         self.music_content_table.grant_read_data(self.discover_function)
         self.artists_table.grant_read_data(self.discover_function)
