@@ -12,8 +12,9 @@ dynamodb = boto3.resource('dynamodb')
 
 def handler(event, context):
     """
-    Create Artist Handler
+    Create Artist Handler - Enhanced for Discover Functionality
     Implements requirement 1.3: Kreiranje umetnika (administrator)
+    DISCOVER OPTIMIZATION: Sets primaryGenre for efficient genre-based queries
     """
     
     logger.info("Create artist request received")
@@ -53,7 +54,8 @@ def handler(event, context):
                 'artistId': artist_id,
                 'name': artist_data['name'],
                 'biography': artist_data['biography'],
-                'genres': artist_data['genres']
+                'genres': artist_data['genres'],
+                'primaryGenre': artist_data['primaryGenre']  # Include primary genre in response
             }
         })
         
@@ -106,7 +108,6 @@ def validate_artist_input(input_data):
     elif len(input_data['genres']) == 0:
         errors.append('At least one genre is required')
     else:
-        
         for genre in input_data['genres']:
             if not isinstance(genre, str):
                 errors.append(f'Invalid genre: {genre}.')
@@ -132,19 +133,66 @@ def check_artist_name_exists(name):
         logger.error(f"Error checking artist name: {str(e)}")
         return False
 
+def normalize_genre(genre):
+    """
+    DISCOVER OPTIMIZATION: Normalize genre names for consistent filtering
+    This ensures that "Rock", "rock", "ROCK" are all stored as "rock"
+    """
+    if not genre or not isinstance(genre, str):
+        return 'unknown'
+    
+    # Convert to lowercase and strip whitespace
+    normalized = genre.lower().strip()
+    
+    # Handle common variations and typos
+    genre_mappings = {
+        'r&b': 'rnb',
+        'rhythm and blues': 'rnb',
+        'hip-hop': 'hiphop',
+        'hip hop': 'hiphop',
+        'drum and bass': 'drumnbass',
+        'drum & bass': 'drumnbass',
+        'electronic dance music': 'edm',
+        'singer-songwriter': 'singersongwriter',
+        'alt-rock': 'alternative',
+        'alternative rock': 'alternative',
+        'heavy metal': 'metal',
+        'death metal': 'metal',
+        'black metal': 'metal',
+        'thrash metal': 'metal'
+    }
+    
+    return genre_mappings.get(normalized, normalized)
+
 def create_artist_record(artist_id, input_data, event):
-    """Create artist record structure"""
+    """
+    Create artist record structure
+    DISCOVER OPTIMIZATION: Sets primaryGenre for efficient querying
+    """
     
     # Get creator info from authorizer context
     request_context = event.get('requestContext', {})
     authorizer = request_context.get('authorizer', {})
     creator_username = authorizer.get('username', 'unknown')
     
+    # DISCOVER OPTIMIZATION: Normalize all genres for consistent filtering
+    normalized_genres = [normalize_genre(genre) for genre in input_data['genres']]
+    # Remove duplicates while preserving order
+    normalized_genres = list(dict.fromkeys(normalized_genres))
+    # Remove 'unknown' if there are other valid genres
+    if len(normalized_genres) > 1 and 'unknown' in normalized_genres:
+        normalized_genres.remove('unknown')
+    
+    # DISCOVER OPTIMIZATION: Set primary genre (first genre in the list)
+    primary_genre = normalized_genres[0] if normalized_genres else 'unknown'
+    
     return {
         'artistId': artist_id,
         'name': input_data['name'].strip(),
         'biography': input_data['biography'].strip(),
-        'genres': [genre.strip().lower() for genre in input_data['genres']],
+        'genres': normalized_genres,
+        # DISCOVER OPTIMIZATION: Primary genre for efficient GSI queries
+        'primaryGenre': primary_genre,
         'status': 'active',
         'createdAt': datetime.utcnow().isoformat(),
         'updatedAt': datetime.utcnow().isoformat(),
@@ -153,7 +201,9 @@ def create_artist_record(artist_id, input_data, event):
             'totalSongs': 0,
             'totalAlbums': 0,
             'followers': 0,
-            'verified': False
+            'verified': False,
+            # DISCOVER OPTIMIZATION: Track genre distribution
+            'genreDistribution': {genre: 0 for genre in normalized_genres}
         },
         'socialLinks': input_data.get('socialLinks', {}),
         'imageUrl': input_data.get('imageUrl', ''),
@@ -167,7 +217,7 @@ def store_artist(artist_data):
     try:
         table = dynamodb.Table(os.environ['ARTISTS_TABLE'])
         table.put_item(Item=artist_data)
-        logger.info(f"Artist stored successfully: {artist_data['artistId']}")
+        logger.info(f"Artist stored successfully: {artist_data['artistId']} with primary genre: {artist_data['primaryGenre']}")
         
     except Exception as e:
         logger.error(f"Error storing artist: {str(e)}")
