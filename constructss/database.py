@@ -285,19 +285,7 @@ class DatabaseConstruct(Construct):
             ),
             projection_type=dynamodb.ProjectionType.ALL
         )
-        
-        table.add_global_secondary_index(
-            index_name='userId-subscriptionType-targetId-index',
-            partition_key=dynamodb.Attribute(
-                name='userId',
-                type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name='compositeKey',
-                type=dynamodb.AttributeType.STRING
-            ),
-            projection_type=dynamodb.ProjectionType.ALL
-        )
+
         
         print("Subscriptions table created with album subscription support")
         return table
