@@ -7,7 +7,7 @@ from constructs import Construct
 from config import AppConfig
 
 class ApiConstruct(Construct):
-    """API Gateway infrastructure - extracted from existing code"""
+    """API Gateway infrastructure - enhanced with discover endpoints for performance-optimized filtering"""
     
     def __init__(
         self,
@@ -30,7 +30,10 @@ class ApiConstruct(Construct):
         update_music_content_function: _lambda.Function,
         delete_music_content_function: _lambda.Function,
         notify_subscribers_function: _lambda.Function,
-        get_notifications_function: _lambda.Function
+        get_notifications_function: _lambda.Function,
+        discover_function: _lambda.Function,  # Enhanced discover with album support
+        create_album_function: _lambda.Function,  # NEW: Album creation
+        get_albums_function: _lambda.Function     # NEW: Album retrieval
 
     ):
         super().__init__(scope, id)
@@ -53,8 +56,11 @@ class ApiConstruct(Construct):
         self.delete_music_content_function = delete_music_content_function
         self.notify_subscribers_function = notify_subscribers_function
         self.get_notifications_function = get_notifications_function
+        self.discover_function = discover_function  # Enhanced discover with album support
+        self.create_album_function = create_album_function  # NEW: Album creation
+        self.get_albums_function = get_albums_function      # NEW: Album retrieval
         
-        print(f"Creating API Gateway...")
+        print(f"Creating API Gateway with discover endpoints...")
         
         # Create API (your existing code)
         self.api = self._create_api_gateway()
@@ -103,7 +109,10 @@ class ApiConstruct(Construct):
         return api
     
     def _create_api_resources(self, api: apigateway.RestApi):
-        """Your existing _create_api_resources method, unchanged"""
+        """Enhanced API resources with discover endpoints"""
+        
+        # Create authorizer for protected endpoints
+        authorizer = self._create_lambda_authorizer()
         
         # Auth endpoints (public)
         auth_resource = api.root.add_resource('auth')
@@ -145,7 +154,7 @@ class ApiConstruct(Construct):
             ]
         )
 
-        authorizer = self._create_lambda_authorizer()
+        # Artists endpoints
         artists_resource = api.root.add_resource('artists')
         artists_resource.add_method(
             'POST',
@@ -160,6 +169,18 @@ class ApiConstruct(Construct):
             ]
         )
 
+        artists_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_artists_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+        # Rating endpoints
         rating_resource = api.root.add_resource('rating')
         rating_resource.add_method(
             'POST',
@@ -184,19 +205,8 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
-       
-        
-        artists_resource.add_method(
-            'GET',
-            apigateway.LambdaIntegration(self.get_artists_function),
-            authorizer=authorizer,
-            method_responses=[
-                apigateway.MethodResponse(status_code='200'),
-                apigateway.MethodResponse(status_code='401'),
-                apigateway.MethodResponse(status_code='500')
-            ]
-        )
 
+        # Notification endpoints
         notification_resource = api.root.add_resource('notification')
         notification_resource.add_method(
             'POST',
@@ -222,6 +232,7 @@ class ApiConstruct(Construct):
             ]
         )
 
+        # Subscription endpoints
         subscription_resource = api.root.add_resource('subscription')
         subscription_resource.add_method(
             'POST',
@@ -248,7 +259,6 @@ class ApiConstruct(Construct):
         )
 
         subscription_id_resource = subscription_resource.add_resource('{subscriptionId}')
-
         subscription_id_resource.add_method(
             'DELETE',
             apigateway.LambdaIntegration(self.delete_subscription_function),
@@ -263,7 +273,6 @@ class ApiConstruct(Construct):
         )
 
         # Music content endpoints
-        #fetching music content
         music_content_resource = api.root.add_resource('music-content')
         music_content_resource.add_method(
             'GET',
@@ -275,7 +284,7 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
-        #creating music content
+
         music_content_resource.add_method(
             'POST',
             apigateway.LambdaIntegration(self.create_music_content_function),
@@ -288,7 +297,7 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
-        #updating music content
+
         music_content_resource.add_method(
             'PUT',
             apigateway.LambdaIntegration(self.update_music_content_function),
@@ -301,7 +310,7 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
-        #deleting music content
+
         music_content_resource.add_method(
             'DELETE',
             apigateway.LambdaIntegration(self.delete_music_content_function),
@@ -314,24 +323,123 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='500')
             ]
         )
+
+        # NEW: Discover endpoints for performance-optimized content filtering
+        discover_resource = api.root.add_resource('discover')
+        
+        # GET /discover/genres - List all available genres
+        genres_resource = discover_resource.add_resource('genres')
+        genres_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.discover_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+        
+        # GET /discover/content?genre=rock&artistId=123&albumId=456
+        content_resource = discover_resource.add_resource('content') 
+        content_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.discover_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+        
+        # GET /discover/artists?genre=rock
+        discover_artists_resource = discover_resource.add_resource('artists')
+        discover_artists_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.discover_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+        
+        # GET /discover/albums?genre=rock
+        albums_resource = discover_resource.add_resource('albums')
+        albums_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.discover_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+        
+        # NEW: Album management endpoints
+        albums_mgmt_resource = api.root.add_resource('albums')
+        
+        # POST /albums - Create album (admin only)
+        albums_mgmt_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.create_album_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='201'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='409'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+        
+        # GET /albums - Get albums with filtering
+        albums_mgmt_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_albums_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
         
         print("API endpoints created:")
-        print("- POST /auth/register (implemented)")
-        print("- POST /auth/login (implemented)") 
-        print("- POST /auth/refresh (implemented)")
-        print("- POST /rating (implemented)")
-        print("- POST /subscription (implemented)")
-        print("- POST /notification (implemented)")
+        print("- POST /auth/register (public)")
+        print("- POST /auth/login (public)") 
+        print("- POST /auth/refresh (public)")
+        print("- POST /rating (protected, all users)")
+        print("- POST /subscription (protected, all users)")
+        print("- POST /notification (protected, all users)")
         print("- POST /artists (protected, admin only)")
         print("- GET /artists (protected, all users)")
         print("- GET /subscription (protected, all users)")
         print("- GET /notification (protected, all users)")
-        print("- GET /rating (implemented)")
-        print("- DELETE /subscription (protected, all users)")
+        print("- GET /rating (protected, all users)")
+        print("- DELETE /subscription/{subscriptionId} (protected, all users)")
         print("- GET /music-content (protected, all users)")
         print("- POST /music-content (protected, admin only)")
         print("- PUT /music-content (protected, admin only)")
         print("- DELETE /music-content (protected, admin only)")
+        print("")
+        print("Album management endpoints:")
+        print("- POST /albums (protected, admin only) - Create albums")
+        print("- GET /albums?artistId=X&genre=X (protected, all users) - Get albums with filtering")
+        print("")
+        print("Discover endpoints (protected, all users):")
+        print("- GET /discover/genres - List all available genres with counts (includes albums)")
+        print("- GET /discover/content?genre=X - Get content by genre (chronological)")
+        print("- GET /discover/artists?genre=X - Get artists by genre")
+        print("- GET /discover/albums?genre=X - Get albums by genre")
+        print("- Support for query parameters: genre, artistId, albumId, sortBy, limit, lastKey")
     
     def _create_lambda_authorizer(self) -> apigateway.TokenAuthorizer:
         """Create Lambda authorizer for protected endpoints"""

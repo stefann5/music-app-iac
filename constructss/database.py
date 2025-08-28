@@ -6,7 +6,7 @@ from constructs import Construct
 from config import AppConfig
 
 class DatabaseConstruct(Construct):
-    """Database infrastructure - extracted from existing code"""
+    """Database infrastructure - enhanced with Albums table and performance optimizations for discover functionality"""
     
     def __init__(self, scope: Construct, id: str, config: AppConfig):
         super().__init__(scope, id)
@@ -14,12 +14,13 @@ class DatabaseConstruct(Construct):
         self.config = config
         
         print(f"Creating Users table...")
-        
-        # Create users table (your existing code)
         self.users_table = self._create_users_table()
         
         print(f"Creating Artists table...")
         self.artists_table = self._create_artists_table()
+
+        print(f"Creating Albums table...")
+        self.albums_table = self._create_albums_table()
 
         print(f"Creating Ratings table...")
         self.ratings_table = self._create_ratings_table()
@@ -27,7 +28,7 @@ class DatabaseConstruct(Construct):
         print(f"Creating Subscriptions table...")
         self.subscriptions_table = self._create_subscriptions_table()
 
-        print(f"Creating music conntent table...")
+        print(f"Creating music content table with album relationships...")
         self.music_content_table = self._create_music_content_table()
 
         print(f"Creating Notifications table...")
@@ -48,7 +49,6 @@ class DatabaseConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY
         )
         
-        # Add Global Secondary Index for username lookup
         table.add_global_secondary_index(
             index_name='username-index',
             partition_key=dynamodb.Attribute(
@@ -58,7 +58,6 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        # Add Global Secondary Index for email lookup
         table.add_global_secondary_index(
             index_name='email-index',
             partition_key=dynamodb.Attribute(
@@ -72,7 +71,7 @@ class DatabaseConstruct(Construct):
         return table
     
     def _create_artists_table(self) -> dynamodb.Table:
-        """Create Artists table for storing artist information"""
+        """Enhanced Artists table with better genre filtering performance"""
         
         table = dynamodb.Table(
             self,
@@ -86,7 +85,6 @@ class DatabaseConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY
         )
         
-        # Add Global Secondary Index for name lookup
         table.add_global_secondary_index(
             index_name='name-index',
             partition_key=dynamodb.Attribute(
@@ -96,10 +94,102 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        print("Artists table created with name index")
+        # PERFORMANCE OPTIMIZATION: Add GSI for primary genre filtering
+        table.add_global_secondary_index(
+            index_name='primaryGenre-index',
+            partition_key=dynamodb.Attribute(
+                name='primaryGenre',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='name',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        print("Artists table created with name and primaryGenre indexes for optimal discover performance")
+        return table
+    
+    def _create_albums_table(self) -> dynamodb.Table:
+        """
+        Albums table for first-class album support in discover functionality
+        PERFORMANCE OPTIMIZATION: GSI indexes for efficient album filtering (simplified)
+        """
+        
+        table = dynamodb.Table(
+            self,
+            "AlbumsTable",
+            table_name=f"{self.config.app_name}-Albums",
+            partition_key=dynamodb.Attribute(
+                name='albumId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY
+        )
+        
+        # GSI for album title search
+        table.add_global_secondary_index(
+            index_name='title-index',
+            partition_key=dynamodb.Attribute(
+                name='title',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        # PERFORMANCE OPTIMIZATION 1: Genre-based album filtering
+        table.add_global_secondary_index(
+            index_name='genre-createdAt-index',
+            partition_key=dynamodb.Attribute(
+                name='genre',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='createdAt',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        # PERFORMANCE OPTIMIZATION 2: Artist-based album filtering
+        table.add_global_secondary_index(
+            index_name='artistId-createdAt-index',
+            partition_key=dynamodb.Attribute(
+                name='artistId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='createdAt',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        # PERFORMANCE OPTIMIZATION 3: Genre + Artist combination for drill-down
+        table.add_global_secondary_index(
+            index_name='genre-artistId-index',
+            partition_key=dynamodb.Attribute(
+                name='genre',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='artistId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        print("Albums table created with optimized indexes for discover functionality:")
+        print("- genre-createdAt-index: Fast genre filtering with chronological order")
+        print("- artistId-createdAt-index: Efficient artist album queries")
+        print("- genre-artistId-index: Genre + artist drill-down")
+        
         return table
     
     def _create_ratings_table(self) -> dynamodb.Table:
+        """Enhanced ratings table with album support"""
     
         table = dynamodb.Table(
             self,
@@ -113,7 +203,7 @@ class DatabaseConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY
         )
         
-        # Add Global Secondary Index for user lookup (da vidite sve ocene korisnika)
+        # Existing indexes
         table.add_global_secondary_index(
             index_name='userId-index',
             partition_key=dynamodb.Attribute(
@@ -123,7 +213,6 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        # Add Global Secondary Index for song lookup (da vidite sve ocene pesme)
         table.add_global_secondary_index(
             index_name='songId-index',
             partition_key=dynamodb.Attribute(
@@ -133,8 +222,6 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        # Add Global Secondary Index za kombinaciju userId i songId 
-        # (da proverite da li je korisnik već ocenio pesmu)
         table.add_global_secondary_index(
             index_name='userId-songId-index',
             partition_key=dynamodb.Attribute(
@@ -148,11 +235,21 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        print("Ratings table created with userId, songId, and userId-songId indexes")
+        # NEW: Album-based ratings
+        table.add_global_secondary_index(
+            index_name='albumId-index',
+            partition_key=dynamodb.Attribute(
+                name='albumId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        print("Ratings table created with userId, songId, albumId indexes")
         return table
     
     def _create_subscriptions_table(self) -> dynamodb.Table:
-        """Create Subscriptions table for user content subscriptions"""
+        """Enhanced subscriptions table with album subscription support"""
         
         table = dynamodb.Table(
             self,
@@ -166,7 +263,7 @@ class DatabaseConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY
         )
         
-        # GSI za pronalaženje svih pretplata korisnika
+        # Existing indexes
         table.add_global_secondary_index(
             index_name='userId-index',
             partition_key=dynamodb.Attribute(
@@ -176,7 +273,6 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        # GSI za pronalaženje pretplata po tipu i vrednosti
         table.add_global_secondary_index(
             index_name='subscriptionType-targetId-index',
             partition_key=dynamodb.Attribute(
@@ -190,7 +286,6 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        # GSI za kombinaciju korisnika i tipa (provera duplikata)
         table.add_global_secondary_index(
             index_name='userId-subscriptionType-targetId-index',
             partition_key=dynamodb.Attribute(
@@ -198,17 +293,17 @@ class DatabaseConstruct(Construct):
                 type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
-                name='compositeKey',  # userId#subscriptionType#targetId
+                name='compositeKey',
                 type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        print("Subscriptions table created with indexes")
+        print("Subscriptions table created with album subscription support")
         return table
     
     def _create_music_content_table(self) -> dynamodb.Table:
-        """Create MusicContent table for storing music content information"""
+        """Enhanced MusicContent table with proper album relationships and performance optimizations"""
         
         table = dynamodb.Table(
             self,
@@ -222,7 +317,7 @@ class DatabaseConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY
         )
         
-        # Add Global Secondary Index for title lookup
+        # Existing indexes
         table.add_global_secondary_index(
             index_name='title-index',
             partition_key=dynamodb.Attribute(
@@ -232,21 +327,68 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        # Add Global Secondary Index for artistId lookup
         table.add_global_secondary_index(
             index_name='artistId-index',
             partition_key=dynamodb.Attribute(
                 name='artistId',
                 type=dynamodb.AttributeType.STRING
             ),
+            sort_key=dynamodb.Attribute(
+                name='createdAt',
+                type=dynamodb.AttributeType.STRING
+            ),
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        print("MusicContent table created with title and artistId indexes")
+        # ENHANCED: Album-based content queries
+        table.add_global_secondary_index(
+            index_name='albumId-trackNumber-index',
+            partition_key=dynamodb.Attribute(
+                name='albumId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='trackNumber',
+                type=dynamodb.AttributeType.NUMBER
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        # Genre-based optimizations
+        table.add_global_secondary_index(
+            index_name='genre-createdAt-index',
+            partition_key=dynamodb.Attribute(
+                name='genre',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='createdAt',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        table.add_global_secondary_index(
+            index_name='genre-artistId-index',
+            partition_key=dynamodb.Attribute(
+                name='genre',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='artistId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        print("MusicContent table created with album relationships and optimized indexes:")
+        print("- albumId-trackNumber-index: Album track listings in order")
+        print("- Enhanced genre indexes for discover functionality")
+        
         return table
 
     def _create_notifications_table(self) -> dynamodb.Table:
-        """Create Notifications table for user content notifications"""
+        """Notifications table with album notification support"""
 
         table = dynamodb.Table(
             self,
@@ -260,17 +402,15 @@ class DatabaseConstruct(Construct):
             removal_policy=RemovalPolicy.DESTROY
         )
 
-        # GSI za listanje notifikacija po korisniku (subscriber)
         table.add_global_secondary_index(
             index_name="subscriber-index",
             partition_key=dynamodb.Attribute(
-                name="subscriber",   # username iz Users tabele
+                name="subscriber",
                 type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.ALL
         )
 
-        # GSI za listanje notifikacija po contentId
         table.add_global_secondary_index(
             index_name="contentId-index",
             partition_key=dynamodb.Attribute(
@@ -280,5 +420,15 @@ class DatabaseConstruct(Construct):
             projection_type=dynamodb.ProjectionType.ALL
         )
 
-        print("Notifications table created with indexes")
+        # NEW: Album-based notifications
+        table.add_global_secondary_index(
+            index_name="albumId-index",
+            partition_key=dynamodb.Attribute(
+                name="albumId",
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+
+        print("Notifications table created with album notification support")
         return table

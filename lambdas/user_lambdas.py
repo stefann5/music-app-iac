@@ -7,7 +7,7 @@ from constructs import Construct
 from config import AppConfig
 
 class UserLambdas(Construct):
-    """Lambda functions for user management"""
+    """Lambda functions for user management - enhanced with album support and discover functionality"""
     
     def __init__(
         self,
@@ -22,7 +22,8 @@ class UserLambdas(Construct):
         subscriptions_table,
         music_content_table,
         music_bucket,
-        notifications_table
+        notifications_table,
+        albums_table  # NEW: Albums table
     ):
         super().__init__(scope, id)
         
@@ -36,10 +37,9 @@ class UserLambdas(Construct):
         self.music_content_table = music_content_table
         self.music_bucket = music_bucket
         self.notifications_table = notifications_table
+        self.albums_table = albums_table  # NEW: Store albums table reference
         
         print(f"Creating registration Lambda function...")
-        
-        # Create registration function (your existing code)
         self.registration_function = self._create_registration_function()
         
         print(f"Creating login Lambda function...")
@@ -54,7 +54,7 @@ class UserLambdas(Construct):
         print(f"Creating create artist Lambda function...") 
         self.create_artist_function = self._create_create_artist_function()  
 
-        print(f"Creating create artist Lambda function...") 
+        print(f"Creating create rating Lambda function...") 
         self.create_rating_function = self._create_create_rating_function()  
         
         print(f"Creating get artists Lambda function...")
@@ -90,9 +90,18 @@ class UserLambdas(Construct):
         print(f"Creating get notifications Lambda function...")
         self.get_notifications_function = self._create_get_notifications_function()
 
-        
-        
-        # Grant permissions (your existing code)
+        # NEW: Album management functions
+        print(f"Creating create album Lambda function...")
+        self.create_album_function = self._create_create_album_function()
+
+        print(f"Creating get albums Lambda function...")
+        self.get_albums_function = self._create_get_albums_function()
+
+        # Enhanced discover functionality for albums and content
+        print(f"Creating discover Lambda function...")
+        self.discover_function = self._create_discover_function()
+
+        # Grant permissions (includes new album functions)
         self._grant_permissions()
     
     def _create_registration_function(self) -> _lambda.Function:
@@ -325,9 +334,6 @@ class UserLambdas(Construct):
             }
         )
 
-    
-
-
     def _create_delete_subscription_function(self) -> _lambda.Function:
         """Create Lambda function for deleting subscription"""
         
@@ -364,7 +370,9 @@ class UserLambdas(Construct):
                 'MAX_FILE_SIZE': str(self.config.max_file_size),
                 'ALLOWED_FILE_TYPES': ','.join(self.config.allowed_file_types),
                 'ALLOWED_IMAGE_TYPES': ','.join(self.config.allowed_image_types),
-                'MAX_IMAGE_SIZE': str(self.config.max_image_size)
+                'MAX_IMAGE_SIZE': str(self.config.max_image_size),
+                'ARTISTS_TABLE': self.artists_table.table_name,  # For updating artist metadata
+                'ALBUMS_TABLE': self.albums_table.table_name     # NEW: For album relationship updates
             }
         )
 
@@ -424,11 +432,77 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_discover_function(self) -> _lambda.Function:
+        """
+        Create Lambda function for discover functionality with album support
+        PERFORMANCE OPTIMIZED: Uses GSI queries for efficient genre-based filtering
+        """
+        return _lambda.Function(
+            self,
+            "DiscoverFunction",
+            function_name=f"{self.config.app_name}-Discover",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/discover"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
+                'ARTISTS_TABLE': self.artists_table.table_name,
+                'ALBUMS_TABLE': self.albums_table.table_name,  # NEW: Albums table for discover
+                'APP_NAME': self.config.app_name
+            }
+        )
+
+    def _create_create_album_function(self) -> _lambda.Function:
+        """
+        NEW: Create Lambda function for album creation (admin only)
+        """
+        return _lambda.Function(
+            self,
+            "CreateAlbumFunction",
+            function_name=f"{self.config.app_name}-CreateAlbum",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/create_album"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'ALBUMS_TABLE': self.albums_table.table_name,
+                'ARTISTS_TABLE': self.artists_table.table_name,  # For artist verification
+                'APP_NAME': self.config.app_name
+            }
+        )
+
+    def _create_get_albums_function(self) -> _lambda.Function:
+        """
+        NEW: Create Lambda function for album retrieval with filtering
+        """
+        return _lambda.Function(
+            self,
+            "GetAlbumsFunction", 
+            function_name=f"{self.config.app_name}-GetAlbums",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_albums"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'ALBUMS_TABLE': self.albums_table.table_name,
+                'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,  # For track listings
+                'APP_NAME': self.config.app_name
+            }
+        )
+
     def _grant_permissions(self):
-        """Your existing _grant_permissions method"""
+        """Enhanced permissions including discover and album functions"""
         
         print("Granting permissions...")
         
+        # Existing Cognito permissions
         self.registration_function.add_to_role_policy(
             iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
@@ -471,45 +545,46 @@ class UserLambdas(Construct):
             )
         )
 
-
+        # DynamoDB permissions for existing functions
         self.users_table.grant_read_write_data(self.login_function)
-        
         self.users_table.grant_read_write_data(self.registration_function)
-        
         self.artists_table.grant_read_write_data(self.create_artist_function)
-
         self.ratings_table.grant_read_write_data(self.create_rating_function)
-
         self.subscriptions_table.grant_read_write_data(self.create_subscription_function)
-        
         self.artists_table.grant_read_data(self.get_artists_function)
-
         self.subscriptions_table.grant_read_data(self.get_subscriptions_function)
-
         self.subscriptions_table.grant_read_write_data(self.delete_subscription_function)
-
         self.ratings_table.grant_read_data(self.get_ratings_function)
-
         self.music_content_table.grant_read_write_data(self.create_music_content_function)
-
         self.music_content_table.grant_read_write_data(self.update_music_content_function)
-
         self.music_content_table.grant_read_data(self.get_music_content_function)
-
         self.music_content_table.grant_read_write_data(self.delete_music_content_function)
-        
         self.notifications_table.grant_read_write_data(self.notify_subscribers_function)
-
         self.notifications_table.grant_read_data(self.get_notifications_function)
         
+        # S3 permissions
         self.music_bucket.grant_read_write(self.create_music_content_function)
-        
         self.music_bucket.grant_read(self.get_music_content_function)
-        
         self.music_bucket.grant_read_write(self.delete_music_content_function)
-
         self.music_bucket.grant_read_write(self.update_music_content_function)
 
-        print("Permissions granted successfully")
-    
-    
+        # Discover function permissions - read access to all content tables
+        self.music_content_table.grant_read_data(self.discover_function)
+        self.artists_table.grant_read_data(self.discover_function)
+        self.albums_table.grant_read_data(self.discover_function)  # NEW: Albums read access
+        
+        # Create music content needs access to albums for relationship updates
+        self.albums_table.grant_read_write_data(self.create_music_content_function)  # NEW: For album metadata updates
+        
+        # Allow create_music_content to update artist metadata
+        self.artists_table.grant_read_write_data(self.create_music_content_function)
+
+        # NEW: Album function permissions
+        self.albums_table.grant_read_write_data(self.create_album_function)  # Create albums
+        self.artists_table.grant_read_data(self.create_album_function)       # Verify artist exists
+        self.artists_table.grant_read_write_data(self.create_album_function) # Update artist album count
+        
+        self.albums_table.grant_read_data(self.get_albums_function)          # Read albums
+        self.music_content_table.grant_read_data(self.get_albums_function)   # Read tracks for album details
+
+        print("Permissions granted successfully, including album and discover functionality")
