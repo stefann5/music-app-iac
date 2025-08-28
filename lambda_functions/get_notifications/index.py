@@ -25,7 +25,10 @@ def handler(event, context):
         query_params = event.get('queryStringParameters') or {}
         limit = int(query_params.get('limit', 50))  # Default limit of 50
         last_key = query_params.get('lastKey')  # For pagination
-        subscriber = query_params.get('subscriber')
+        
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        subscriber = authorizer.get('username', {})
 
         # Validate limit
         if limit > 100:
