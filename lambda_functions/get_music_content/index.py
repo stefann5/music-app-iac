@@ -22,6 +22,7 @@ def handler(event, context):
         content_id = query_params.get('contentId')
         artist_id = query_params.get('artistId')
         search_query = query_params.get('search')
+        album_id = query_params.get('albumId')
 
         if content_id:
             return _get_content_by_id(table, content_id, bucket_name)
@@ -29,6 +30,8 @@ def handler(event, context):
             return _get_content_by_artist(artist_id, table, query_params)
         elif search_query:
             return _search_content_by_title(search_query, table, query_params)
+        elif album_id:
+            return _get_content_by_album(album_id, table, query_params)
         else:
             return _get_all_content(table, query_params)
     except Exception as e:
@@ -137,8 +140,19 @@ def _get_content_by_artist(artist_id, table, query_params):
             query_kwargs['ExclusiveStartKey'] = { 'contentId': last_key }
 
         response = table.query(**query_kwargs)
-        items = [_sanitize_item(item) for item in response.get('Items', [])]
+        
+        items = []
+        for item in response.get('Items', []):
+            safe_item = _sanitize_item(item)
+            safe_item['streamURL'] = _generate_stream_url(item, item.get('bucketName'))
 
+            if item.get('coverImageS3Key'):
+                safe_item['coverImageUrl'] = _generate_cover_image_url(item, item.get('bucketName'))
+            else:
+                safe_item['coverImageUrl'] = None
+            
+            items.append(safe_item)
+            
         result = {
             'content': items,
             'count': len(items),
@@ -160,6 +174,58 @@ def _get_content_by_artist(artist_id, table, query_params):
             'headers': get_cors_headers(),
             'body': json.dumps({'error': 'Failed to get content by artist'})
         }
+
+def _get_content_by_album(album_id, table, query_params):
+    try:
+        limit = min(int(query_params.get('limit', 50)), 100)
+        last_key = query_params.get('lastKey')
+
+        query_kwargs = {
+            'IndexName': 'albumId-trackNumber-index',
+            'KeyConditionExpression': 'albumId = :albumId',
+            'ExpressionAttributeValues': {':albumId': album_id},
+            'Limit': limit
+        }
+
+        if last_key:
+            query_kwargs['ExclusiveStartKey'] = { 'contentId': last_key }
+
+        response = table.query(**query_kwargs)
+        
+        items = []
+        for item in response.get('Items', []):
+            safe_item = _sanitize_item(item)
+            safe_item['streamURL'] = _generate_stream_url(item, item.get('bucketName'))
+
+            if item.get('coverImageS3Key'):
+                safe_item['coverImageUrl'] = _generate_cover_image_url(item, item.get('bucketName'))
+            else:
+                safe_item['coverImageUrl'] = None
+            
+            items.append(safe_item)
+            
+        result = {
+            'content': items,
+            'count': len(items),
+            'albumId': album_id
+        }
+
+        if 'LastEvaluatedKey' in response:
+            result['lastKey'] = response['LastEvaluatedKey']['contentId']
+
+        return {
+            'statusCode': 200,
+            'headers': get_cors_headers(),
+            'body': json.dumps(result)
+        }
+    except Exception as e:
+        print(f"Error fetching content by artist: {e}")
+        return {
+            'statusCode': 500,
+            'headers': get_cors_headers(),
+            'body': json.dumps({'error': 'Failed to get content by artist'})
+        }
+
 
 def _search_content_by_title(search_query, table, query_params):
     try:
