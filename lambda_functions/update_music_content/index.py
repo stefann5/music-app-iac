@@ -15,6 +15,7 @@ def handler(event, context):
         if not is_admin_user(event):
             return {
                 'statusCode': 403,
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Access denied. Administrator role required.'})
             }
         
@@ -34,6 +35,7 @@ def handler(event, context):
         print(f"Unexpected error: {str(e)}")
         return {
             "statusCode": 500,
+            'headers': get_cors_headers(),
             "body": json.dumps({"message": "Internal server error"})
         }
 
@@ -50,6 +52,7 @@ def _handle_json_update(event, table):
         if not content_id:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Missing contentId"})
             }
         # Fetch existing item to ensure it exists
@@ -59,12 +62,14 @@ def _handle_json_update(event, table):
             if 'Item' not in response:
                 return {
                     "statusCode": 404,
+                    'headers': get_cors_headers(),
                     "body": json.dumps({"message": "Content not found"})
                 }
         except Exception as e:
             print(f"Error fetching existing item: {str(e)}")
             return {
                 "statusCode": 500,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Error fetching existing content"})
             }
         
@@ -88,6 +93,7 @@ def _handle_json_update(event, table):
         if not update_expression_parts:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "No valid fields provided to update", "updatableFields": updatable_fields})
             }
         # Perform the update
@@ -106,6 +112,7 @@ def _handle_json_update(event, table):
             print(f"Succcessfully updated item: {content_id}")
             return {
                 "statusCode": 200,
+                'headers': get_cors_headers(),
                 "body": json.dumps({
                     "message": "Music content updated successfully",
                     "content": _sanitize_item(updated_item)
@@ -115,17 +122,20 @@ def _handle_json_update(event, table):
             print(f"Error updating item: {str(e)}")
             return {
                 "statusCode": 500,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Error updating content"})
             }
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
+            'headers': get_cors_headers(),
             "body": json.dumps({"message": "Invalid JSON in request body"})
         }
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return {
             "statusCode": 500,
+            'headers': get_cors_headers(),
             "body": json.dumps({"message": "Internal server error"})
         }
 
@@ -144,6 +154,7 @@ def _handle_mutipart_update(event, table, bucket_name):
         if 'boundary=' not in content_type:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Invalid Content-Type header"})
             }
 
@@ -165,6 +176,7 @@ def _handle_mutipart_update(event, table, bucket_name):
         if not metadata_part or 'contentId' not in metadata_part:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Missing metadata or contentId"})
             }
         
@@ -173,6 +185,7 @@ def _handle_mutipart_update(event, table, bucket_name):
         if 'Item' not in response:
             return {
                 "statusCode": 404,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "Content not found"})
             }
         
@@ -184,6 +197,7 @@ def _handle_mutipart_update(event, table, bucket_name):
             if result['error']:
                 return {
                     "statusCode": 400,
+                    'headers': get_cors_headers(),
                     "body": json.dumps({"message": result['error']})
                 }
             files_updated.append('audio')
@@ -193,6 +207,7 @@ def _handle_mutipart_update(event, table, bucket_name):
             if result['error']:
                 return {
                     "statusCode": 400,
+                    'headers': get_cors_headers(),
                     "body": json.dumps({"message": result['error']})
                 }
             files_updated.append('coverImage')
@@ -261,6 +276,7 @@ def _handle_mutipart_update(event, table, bucket_name):
         if not update_expression_parts:
             return {
                 "statusCode": 400,
+                'headers': get_cors_headers(),
                 "body": json.dumps({"message": "No valid fields or files provided to update"})
             }
         # Performing the update
@@ -279,6 +295,7 @@ def _handle_mutipart_update(event, table, bucket_name):
 
         return {
             "statusCode": 200,
+            'headers': get_cors_headers(),
             "body": json.dumps({
                 "message": "Music content updated successfully",
                 "content": _sanitize_item(updated_item),
@@ -288,12 +305,14 @@ def _handle_mutipart_update(event, table, bucket_name):
     except json.JSONDecodeError:
         return {
             "statusCode": 400,
+            'headers': get_cors_headers(),
             "body": json.dumps({"message": "Invalid JSON in metadata"})
         }
     except Exception as e:
         print(f"Error in multipart update: {str(e)}")
         return {
             "statusCode": 500,
+            'headers': get_cors_headers(),
             "body": json.dumps({"message": "Error updating multipart content"})
         }
 
@@ -471,3 +490,12 @@ def _sanitize_item(item):
         safe_item.pop(field, None)
     
     return safe_item
+
+def get_cors_headers():
+    """Get CORS headers for API responses"""
+    return {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Content-Type': 'application/json'
+    }
