@@ -107,6 +107,9 @@ def handler(event, context):
         )
 
         allowed_image_types = os.environ['ALLOWED_IMAGE_TYPES'].split(',')
+        cover_image_url = None
+        cover_image_key = None
+        
         if cover_image_part:
             image_content_type = cover_image_part.get("content_type", "")
             if image_content_type not in allowed_image_types:
@@ -142,9 +145,18 @@ def handler(event, context):
             cover_image_url = s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': bucket_name, 'Key': cover_image_key},
-                ExpiresIn=604800 # 1 year
+                ExpiresIn=604800 # 1 week
             )
+            
         current_time = datetime.now(timezone.utc).isoformat()
+        
+        # DISCOVER OPTIMIZATION: Normalize genre for consistent filtering
+        normalized_genre = normalize_genre(metadata_part.get('genre', 'unknown'))
+        
+        # NEW: Handle album relationship
+        album_id = metadata_part.get('albumId')
+        track_number = metadata_part.get('trackNumber', 0)
+        
         item = {
             'contentId': content_id,
             'title': metadata_part['title'],
@@ -155,24 +167,45 @@ def handler(event, context):
             's3Key': file_key,
             'bucketName': bucket_name,
             'createdAt': current_time,
-            'lastModified': current_time
+            'lastModified': current_time,
+            # DISCOVER OPTIMIZATION: Store normalized genre for efficient querying
+            'genre': normalized_genre
         }
+
+        # NEW: Add album relationship if provided
+        if album_id:
+            item['albumId'] = album_id
+            item['trackNumber'] = int(track_number) if track_number else 0
+            
+            # Update album track count and duration
+            try:
+                update_album_metadata(album_id)
+            except Exception as e:
+                print(f"Warning: Could not update album metadata: {str(e)}")
 
         if cover_image_part and cover_image_key:
             item['coverImageS3Key'] = cover_image_key
             item['coverImageUrl'] = cover_image_url
             item['coverImageContentType'] = image_content_type
         
-        optional_fields = ['genre', 'album']
+        optional_fields = ['album']  # Keep for backward compatibility
         for field in optional_fields:
             if field in metadata_part and metadata_part[field]:
                 item[field] = metadata_part[field]
 
+        # DISCOVER OPTIMIZATION: Update artist's content count and genres
+        try:
+            update_artist_metadata(metadata_part['artistId'], normalized_genre)
+        except Exception as e:
+            print(f"Warning: Could not update artist metadata: {str(e)}")
+
         table.put_item(Item=item)
+        
         response_data = {
             "message": "Music content created successfully",
             "contentId": content_id,
             "title": item['title'],
+            "genre": item['genre'],
             "filename": item['filename'],
             "fileType": item['fileType'],
             "fileSize": item['fileSize'],
@@ -182,7 +215,7 @@ def handler(event, context):
         if cover_image_part and cover_image_key:
             response_data['coverImageUrl'] = cover_image_url
         
-        print(f"Music content '{content_id}' created successfully.")
+        print(f"Music content '{content_id}' created successfully with genre '{normalized_genre}'")
         return {
             "statusCode": 201,
             'headers': get_cors_headers(),
@@ -201,6 +234,135 @@ def handler(event, context):
             'headers': get_cors_headers(),
             "body": json.dumps({"message": "Internal server error"})
         }
+
+def normalize_genre(genre):
+    """
+    DISCOVER OPTIMIZATION: Normalize genre names for consistent filtering
+    This ensures that "Rock", "rock", "ROCK" are all stored as "rock"
+    """
+    if not genre or not isinstance(genre, str):
+        return 'unknown'
+    
+    # Convert to lowercase and strip whitespace
+    normalized = genre.lower().strip()
+    
+    # Handle common variations and typos
+    genre_mappings = {
+        'r&b': 'rnb',
+        'rhythm and blues': 'rnb',
+        'hip-hop': 'hiphop',
+        'hip hop': 'hiphop',
+        'drum and bass': 'drumnbass',
+        'drum & bass': 'drumnbass',
+        'electronic dance music': 'edm',
+        'singer-songwriter': 'singersongwriter',
+        'alt-rock': 'alternative',
+        'alternative rock': 'alternative',
+        'heavy metal': 'metal',
+        'death metal': 'metal',
+        'black metal': 'metal',
+        'thrash metal': 'metal'
+    }
+    
+    return genre_mappings.get(normalized, normalized)
+
+def update_album_metadata(album_id):
+    """
+    NEW: Update album metadata when new content is added
+    Updates track count and total duration
+    """
+    try:
+        albums_table = dynamodb.Table(os.environ.get('ALBUMS_TABLE', ''))
+        if not albums_table:
+            return
+            
+        # Get current album data
+        response = albums_table.get_item(Key={'albumId': album_id})
+        if 'Item' not in response:
+            return
+            
+        # Get all tracks for this album to calculate totals
+        music_table = dynamodb.Table(os.environ['MUSIC_CONTENT_TABLE'])
+        tracks_response = music_table.query(
+            IndexName='albumId-trackNumber-index',
+            KeyConditionExpression='albumId = :albumId',
+            ExpressionAttributeValues={':albumId': album_id}
+        )
+        
+        tracks = tracks_response.get('Items', [])
+        track_count = len(tracks)
+        total_duration = sum(track.get('duration', 0) for track in tracks)
+        
+        # Update album record
+        albums_table.update_item(
+            Key={'albumId': album_id},
+            UpdateExpression="""
+                SET trackCount = :track_count,
+                    duration = :total_duration,
+                    updatedAt = :updated_at
+            """,
+            ExpressionAttributeValues={
+                ':track_count': track_count,
+                ':total_duration': total_duration,
+                ':updated_at': datetime.now(timezone.utc).isoformat()
+            }
+        )
+        
+    except Exception as e:
+        print(f"Error updating album metadata: {str(e)}")
+        # Don't fail the main operation if album update fails
+        pass
+    """
+    DISCOVER OPTIMIZATION: Update artist metadata when new content is added
+    This helps maintain accurate genre information and content counts
+    """
+    try:
+        artists_table = dynamodb.Table(os.environ.get('ARTISTS_TABLE', ''))
+        if not artists_table:
+            return
+            
+        # Get current artist data
+        response = artists_table.get_item(Key={'artistId': artist_id})
+        if 'Item' not in response:
+            return
+            
+        artist = response['Item']
+        current_genres = artist.get('genres', [])
+        current_primary_genre = artist.get('primaryGenre', '')
+        
+        # Add new genre if not already present
+        if genre not in current_genres and genre != 'unknown':
+            current_genres.append(genre)
+            
+        # Set primary genre if not set
+        if not current_primary_genre and genre != 'unknown':
+            current_primary_genre = genre
+        
+        # Update artist record
+        artists_table.update_item(
+            Key={'artistId': artist_id},
+            UpdateExpression="""
+                SET genres = :genres,
+                    primaryGenre = :primary_genre,
+                    #metadata.totalSongs = if_not_exists(#metadata.totalSongs, :zero) + :one,
+                    updatedAt = :updated_at
+            """,
+            ExpressionAttributeNames={
+                '#metadata': 'metadata'
+            },
+            ExpressionAttributeValues={
+                ':genres': current_genres,
+                ':primary_genre': current_primary_genre,
+                ':zero': 0,
+                ':one': 1,
+                ':updated_at': datetime.now(timezone.utc).isoformat()
+            }
+        )
+        
+    except Exception as e:
+        print(f"Error updating artist metadata: {str(e)}")
+        # Don't fail the main operation if artist update fails
+        pass
 
 def _parse_multipart(body: bytes, boundary: str) -> list:
     parts = []

@@ -1,4 +1,4 @@
-$USER_POOL_ID = "eu-central-1_HjtzoewwV"
+$USER_POOL_ID = "eu-central-1_AduQ3lUaN"
 $TABLE_NAME = "MusicApp-Users"
 $ADMIN_EMAIL = "admin@yourdomain.com"
 $ADMIN_PASSWORD = "AdminPassword123!"
