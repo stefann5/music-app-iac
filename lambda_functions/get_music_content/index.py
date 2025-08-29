@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import boto3
 import os
@@ -16,8 +17,13 @@ def handler(event, context):
         query_params = event.get('queryStringParameters', {}) or {}
         path = event.get('path', '')
 
+
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        username = authorizer.get('username', {})
+        
         if '/stream' in path:
-            return _handle_stream_request(query_params, table, bucket_name)
+            return _handle_stream_request(query_params, table, bucket_name, username)
         
         content_id = query_params.get('contentId')
         artist_id = query_params.get('artistId')
@@ -310,7 +316,7 @@ def _get_all_content(table, query_params):
             'body': json.dumps({'error': 'Failed to get all content'})
         }
 
-def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str):
+def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str, username):
     content_id = query_params.get('contentId')
     if not content_id:
         return {
@@ -318,7 +324,7 @@ def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str
             'headers': get_cors_headers(),
             'body': json.dumps({'error': 'contentId is required for streaming'})
         }
-    
+
     try:
         response = table.get_item(Key={'contentId': content_id})
 
@@ -332,6 +338,8 @@ def _handle_stream_request(query_params: Dict[str, Any], table, bucket_name: str
         item = response['Item']
         presigned_url = _generate_stream_url(item, bucket_name)
         item = _sanitize_item(item)
+
+
         return {
             'statusCode': 200,
             'headers': get_cors_headers(),

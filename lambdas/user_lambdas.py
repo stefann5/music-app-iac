@@ -111,6 +111,8 @@ class UserLambdas(Construct):
         print(f"Creating discover Lambda function...")
         self.discover_function = self._create_discover_function()
 
+        self.add_to_history_function = self._create_add_to_history_function()
+
         # Grant permissions (includes new album functions)
         self._grant_permissions()
     
@@ -325,6 +327,27 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_add_to_history_function(self) -> _lambda.Function:
+        """Create Lambda function for creating ratings"""
+        
+        return _lambda.Function(
+            self,
+            "AddToHistoryFunction",
+            function_name=f"{self.config.app_name}-AddToHistory", 
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/add_to_history"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'USERS_TABLE': self.users_table.table_name,
+                'ARTISTS_TABLE': self.artists_table.table_name,
+                'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+
     def _create_create_rating_function(self) -> _lambda.Function:
         """Create Lambda function for creating ratings"""
         
@@ -458,6 +481,9 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
+                'ARTISTS_TABLE': self.artists_table.table_name,
+                'USERS_TABLE': self.users_table.table_name,
+                'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
                 'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
                 'APP_NAME': self.config.app_name
             }
@@ -476,7 +502,9 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
+                'ALBUMS_TABLE': self.albums_table.table_name,
                 'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
+                'USERS_TABLE': self.users_table.table_name,
                 'RATINGS_TABLE': self.ratings_table.table_name,
                 'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
                 'APP_NAME': self.config.app_name
@@ -616,10 +644,14 @@ class UserLambdas(Construct):
         # DynamoDB permissions for existing functions
         self.users_table.grant_read_write_data(self.login_function)
         self.users_table.grant_read_write_data(self.registration_function)
+        self.users_table.grant_read_data(self.get_feed_function)
+        self.users_table.grant_read_data(self.get_music_content_function)
         self.artists_table.grant_read_write_data(self.create_artist_function)
         self.ratings_table.grant_read_write_data(self.create_rating_function)
         self.subscriptions_table.grant_read_write_data(self.create_subscription_function)
         self.artists_table.grant_read_data(self.get_artists_function)
+        self.artists_table.grant_read_data(self.get_music_content_function)
+
         self.subscriptions_table.grant_read_data(self.get_subscriptions_function)
         self.subscriptions_table.grant_read_write_data(self.delete_subscription_function)
         self.ratings_table.grant_read_data(self.get_ratings_function)
@@ -631,6 +663,12 @@ class UserLambdas(Construct):
         self.ratings_table.grant_read_data(self.is_rated_function)
 
         self.ratings_table.grant_read_data(self.get_feed_function)
+
+
+        self.music_content_table.grant_read_data(self.add_to_history_function)
+        self.artists_table.grant_read_data(self.add_to_history_function)
+        self.users_table.grant_read_write_data(self.add_to_history_function)
+        self.albums_table.grant_read_data(self.add_to_history_function)
 
         self.music_content_table.grant_read_write_data(self.create_music_content_function)
         self.music_content_table.grant_read_write_data(self.update_music_content_function)
