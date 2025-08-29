@@ -70,7 +70,8 @@ class MusicAppStack(Stack):
             user_lambdas.get_feed_function,
             user_lambdas.discover_function,  # Enhanced discover with album support
             user_lambdas.create_album_function,  # NEW: Album management
-            user_lambdas.get_albums_function     # NEW: Album retrieval
+            user_lambdas.get_albums_function,     # NEW: Album retrieval
+            user_lambdas.add_to_history_function
         )
         
         # Step 5: Create outputs

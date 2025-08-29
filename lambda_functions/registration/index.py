@@ -258,6 +258,7 @@ def store_user_profile(user_id, cognito_user_id, user_data):
             },
             'stats': {
                 'songsPlayed': 0,
+                'llisteningHistory': [],
                 'totalListeningTime': 0,
                 'favoriteGenres': [],
                 'joinDate': datetime.utcnow().isoformat()

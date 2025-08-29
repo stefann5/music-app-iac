@@ -36,7 +36,8 @@ class ApiConstruct(Construct):
         get_feed_function: _lambda.Function,
         discover_function: _lambda.Function,  # Enhanced discover with album support
         create_album_function: _lambda.Function,  # NEW: Album creation
-        get_albums_function: _lambda.Function     # NEW: Album retrieval
+        get_albums_function: _lambda.Function,     # NEW: Album retrieval
+        add_to_history_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -64,7 +65,8 @@ class ApiConstruct(Construct):
         self.discover_function = discover_function  # Enhanced discover with album support
         self.create_album_function = create_album_function  # NEW: Album creation
         self.get_albums_function = get_albums_function      # NEW: Album retrieval
-        
+        self.add_to_history_function = add_to_history_function
+
         print(f"Creating API Gateway with discover endpoints...")
         
         # Create API (your existing code)
@@ -155,6 +157,21 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='200'),
                 apigateway.MethodResponse(status_code='400'),
                 apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+         # Artists endpoints
+        history_resource = api.root.add_resource('history')
+        history_resource.add_method(
+            'POST',
+            apigateway.LambdaIntegration(self.add_to_history_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='201'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='403'),
+                apigateway.MethodResponse(status_code='409'),
                 apigateway.MethodResponse(status_code='500')
             ]
         )
