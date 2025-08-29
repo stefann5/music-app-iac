@@ -69,7 +69,7 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
     
     # Korak 1: Analiza pretplata - direktan uticaj
     subscription_boost = {}
-    
+
     for sub in subscriptions:
         if sub['subscriptionType'] == 'ARTIST':
             # Pretplata na artiste - snažan pozitivan signal
@@ -104,9 +104,7 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
    
     if album_song_ratings:
         album_ratings[album['albumId']] = sum(album_song_ratings) / len(album_song_ratings)
-        
-        if album_song_ratings:
-            album_ratings[album['albumId']] = sum(album_song_ratings) / len(album_song_ratings)
+    
     
     # Prosečne ocene po žanrovima i artistima
     avg_genre_ratings = {}
@@ -513,6 +511,7 @@ def transform_subscription_for_response(item):
     return {
         'subscriptionId': item.get('subscriptionId'),
         'username': item.get('username'), 
+        'subscriptionType': item.get('subscriptionType'), 
         'targetId': item.get('targetId'),
         'targetName': item.get('targetName'),
         'timestamp': item.get('timestamp')
