@@ -5,6 +5,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 from config import AppConfig
+from aws_cdk.aws_lambda_event_sources import SqsEventSource
 
 class UserLambdas(Construct):
     """Lambda functions for user management - enhanced with album support and discover functionality"""
@@ -23,7 +24,9 @@ class UserLambdas(Construct):
         music_content_table,
         music_bucket,
         notifications_table,
-        albums_table  # NEW: Albums table
+        albums_table,
+        transcriptions_table,  
+        transcription_queue
     ):
         super().__init__(scope, id)
         
@@ -37,7 +40,9 @@ class UserLambdas(Construct):
         self.music_content_table = music_content_table
         self.music_bucket = music_bucket
         self.notifications_table = notifications_table
-        self.albums_table = albums_table  # NEW: Store albums table reference
+        self.albums_table = albums_table 
+        self.transcriptions_table = transcriptions_table
+        self.transcription_queue = transcription_queue
         
         print(f"Creating registration Lambda function...")
         self.registration_function = self._create_registration_function()
@@ -72,9 +77,6 @@ class UserLambdas(Construct):
         print(f"Creating get ratings Lambda function...")
         self.get_ratings_function = self._create_get_ratings_function()
 
-        print(f"Creating create music content Lambda function...")
-        self.create_music_content_function = self._create_create_music_content_function()
-
         print(f"Creating update music content Lambda function...")
         self.update_music_content_function = self._create_update_music_content_function()
 
@@ -99,17 +101,22 @@ class UserLambdas(Construct):
         print(f"Creating is_subscribed_function Lambda function...")
         self.is_subscribed_function = self._create_is_subscribed_function()
         
-        # Grant permissions (your existing code)
-        # NEW: Album management functions
         print(f"Creating create album Lambda function...")
         self.create_album_function = self._create_create_album_function()
 
         print(f"Creating get albums Lambda function...")
         self.get_albums_function = self._create_get_albums_function()
 
-        # Enhanced discover functionality for albums and content
         print(f"Creating discover Lambda function...")
         self.discover_function = self._create_discover_function()
+        
+        print(f"Creating transcription Lambda functions...")
+        self.start_transcription_function = self._create_start_transcription_function()
+        self.monitor_transcription_function = self._create_monitor_transcription_function()
+        self.get_transcription_function = self._create_get_transcription_function()
+        
+        print(f"Creating create music content Lambda function...")
+        self.create_music_content_function = self._create_create_music_content_function()
 
         self.add_to_history_function = self._create_add_to_history_function()
 
@@ -442,8 +449,9 @@ class UserLambdas(Construct):
                 'ALLOWED_FILE_TYPES': ','.join(self.config.allowed_file_types),
                 'ALLOWED_IMAGE_TYPES': ','.join(self.config.allowed_image_types),
                 'MAX_IMAGE_SIZE': str(self.config.max_image_size),
-                'ARTISTS_TABLE': self.artists_table.table_name,  # For updating artist metadata
-                'ALBUMS_TABLE': self.albums_table.table_name     # NEW: For album relationship updates
+                'ARTISTS_TABLE': self.artists_table.table_name, 
+                'ALBUMS_TABLE': self.albums_table.table_name,
+                'START_TRANSCRIPTION_FUNCTION': f"{self.config.app_name}-StartTranscription" 
             }
         )
 
@@ -592,6 +600,76 @@ class UserLambdas(Construct):
                 'APP_NAME': self.config.app_name
             }
         )
+        
+    def _create_start_transcription_function(self) -> _lambda.Function:
+        """Create Lambda function for starting transcription jobs"""
+        
+        function = _lambda.Function(
+            self,
+            "StartTranscriptionFunction",
+            function_name=f"{self.config.app_name}-StartTranscription",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/start_transcription"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            environment={
+                'TRANSCRIPTIONS_TABLE': self.transcriptions_table.table_name,
+                'TRANSCRIPTION_QUEUE_URL': self.transcription_queue.queue_url,
+                'APP_NAME': self.config.app_name
+            }
+        )
+        
+        return function
+
+    def _create_monitor_transcription_function(self) -> _lambda.Function:
+        """Create Lambda function for monitoring transcription jobs"""
+        
+        function = _lambda.Function(
+            self,
+            "MonitorTranscriptionFunction",
+            function_name=f"{self.config.app_name}-MonitorTranscription",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/monitor_transcription"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            environment={
+                'TRANSCRIPTIONS_TABLE': self.transcriptions_table.table_name,
+                'TRANSCRIPTION_QUEUE_URL': self.transcription_queue.queue_url,
+                'START_TRANSCRIPTION_FUNCTION': f"{self.config.app_name}-StartTranscription",
+                'APP_NAME': self.config.app_name
+            }
+        )
+        function.add_event_source(
+            SqsEventSource(
+                self.transcription_queue,
+                batch_size=10,
+                max_batching_window=Duration.seconds(5)
+            )
+        )
+        
+        return function
+
+    def _create_get_transcription_function(self) -> _lambda.Function:
+        """Create Lambda function for getting transcription results"""
+        
+        function = _lambda.Function(
+            self,
+            "GetTranscriptionFunction", 
+            function_name=f"{self.config.app_name}-GetTranscription",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_transcription"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            environment={
+                'TRANSCRIPTIONS_TABLE': self.transcriptions_table.table_name,
+                'APP_NAME': self.config.app_name
+            }
+        )
+        
+        return function
 
     def _grant_permissions(self):
         """Enhanced permissions including discover and album functions"""
@@ -711,5 +789,37 @@ class UserLambdas(Construct):
         
         self.albums_table.grant_read_data(self.get_albums_function)          # Read albums
         self.music_content_table.grant_read_data(self.get_albums_function)   # Read tracks for album details
-
-        print("Permissions granted successfully, including album and discover functionality")
+        
+        self.transcriptions_table.grant_read_write_data(self.start_transcription_function)
+        self.transcriptions_table.grant_read_write_data(self.monitor_transcription_function)
+        self.transcriptions_table.grant_read_data(self.get_transcription_function)
+        
+        # Amazon Transcribe permissions
+        transcribe_policy = iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=[
+                'transcribe:StartTranscriptionJob',
+                'transcribe:GetTranscriptionJob',
+                'transcribe:ListTranscriptionJobs',
+                'transcribe:DeleteTranscriptionJob'
+            ],
+            resources=['*']
+        )
+        
+        self.start_transcription_function.add_to_role_policy(transcribe_policy)
+        self.monitor_transcription_function.add_to_role_policy(transcribe_policy)
+        
+        # S3 permissions for transcription results
+        self.music_bucket.grant_read_write(self.start_transcription_function)
+        self.music_bucket.grant_read_write(self.monitor_transcription_function)
+        
+        # SQS permissions
+        self.transcription_queue.grant_send_messages(self.start_transcription_function)
+        self.transcription_queue.grant_send_messages(self.monitor_transcription_function)
+        
+        self.start_transcription_function.grant_invoke(self.create_music_content_function)
+        # Lambda invoke permissions for create_music_content to trigger transcription
+        self.start_transcription_function.grant_invoke(
+            iam.ServicePrincipal("lambda.amazonaws.com")
+        )
+        

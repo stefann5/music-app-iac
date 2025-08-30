@@ -33,6 +33,9 @@ class DatabaseConstruct(Construct):
 
         print(f"Creating Notifications table...")
         self.notifications_table = self._create_notifications_table()
+        
+        print(f"Creating Transcriptions table...")
+        self.transcriptions_table = self._create_transcriptions_table()
     
     def _create_users_table(self) -> dynamodb.Table:
         """Your existing _create_users_table method, unchanged"""
@@ -419,4 +422,46 @@ class DatabaseConstruct(Construct):
         )
 
         print("Notifications table created with album notification support")
+        return table
+    
+    def _create_transcriptions_table(self) -> dynamodb.Table:
+        """Transcriptions table for song lyrics/text with error handling and retry support"""
+        
+        table = dynamodb.Table(
+            self,
+            "TranscriptionsTable",
+            table_name=f"{self.config.app_name}-Transcriptions",
+            partition_key=dynamodb.Attribute(
+                name='transcriptionId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY
+        )
+        
+        # GSI for contentId lookups (most common query)
+        table.add_global_secondary_index(
+            index_name='contentId-index',
+            partition_key=dynamodb.Attribute(
+                name='contentId',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        # GSI for status-based monitoring and cleanup
+        table.add_global_secondary_index(
+            index_name='status-createdAt-index',
+            partition_key=dynamodb.Attribute(
+                name='status',
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name='createdAt',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        print("Transcriptions table created with optimized indexes")
         return table

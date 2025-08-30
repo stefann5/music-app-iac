@@ -34,10 +34,11 @@ class ApiConstruct(Construct):
         is_rated_function: _lambda.Function,
         is_subscribed_function: _lambda.Function,
         get_feed_function: _lambda.Function,
-        discover_function: _lambda.Function,  # Enhanced discover with album support
-        create_album_function: _lambda.Function,  # NEW: Album creation
-        get_albums_function: _lambda.Function,     # NEW: Album retrieval
-        add_to_history_function: _lambda.Function
+        discover_function: _lambda.Function, 
+        create_album_function: _lambda.Function,
+        get_albums_function: _lambda.Function, 
+        add_to_history_function: _lambda.Function,
+        get_transcription_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -66,6 +67,7 @@ class ApiConstruct(Construct):
         self.create_album_function = create_album_function  # NEW: Album creation
         self.get_albums_function = get_albums_function      # NEW: Album retrieval
         self.add_to_history_function = add_to_history_function
+        self.get_transcription_function = get_transcription_function
 
         print(f"Creating API Gateway with discover endpoints...")
         
@@ -472,6 +474,20 @@ class ApiConstruct(Construct):
                 apigateway.MethodResponse(status_code='200'),
                 apigateway.MethodResponse(status_code='400'),
                 apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+        
+        transcription_resource = api.root.add_resource('transcription')
+        transcription_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_transcription_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='400'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='404'),
                 apigateway.MethodResponse(status_code='500')
             ]
         )
