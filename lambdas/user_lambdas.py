@@ -742,7 +742,7 @@ class UserLambdas(Construct):
 
         self.ratings_table.grant_read_data(self.get_feed_function)
 
-        self.albums_table.grant_read_data(self.get_feed_function)
+        self.albums_table.grant_read_write_data(self.get_feed_function)
 
         self.music_content_table.grant_read_data(self.add_to_history_function)
         self.artists_table.grant_read_data(self.add_to_history_function)
