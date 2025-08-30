@@ -30,15 +30,16 @@ def handler(event, context):
 
 
         albums = get_all_albums()
+        
         content  = _get_all_content(table)
-
+        
         feed_albums = get_feed_albums(subscriptions, ratings, history, albums, content)
-
+        
         result = {
             'content': feed_albums,
             'count': len(feed_albums)
         }
-
+        
         return {
             'statusCode': 200,
             'headers': get_cors_headers(),
@@ -69,7 +70,7 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
     
     # Korak 1: Analiza pretplata - direktan uticaj
     subscription_boost = {}
-    
+
     for sub in subscriptions:
         if sub['subscriptionType'] == 'ARTIST':
             # Pretplata na artiste - snažan pozitivan signal
@@ -83,10 +84,9 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
                 if album['genre'].lower() == sub['targetName'].lower():
                     subscription_boost[album['albumId']] = subscription_boost.get(album['albumId'], 0) + 30
     
-    
     # Korak 2: Analiza ocena - afinitet prema žanrovima i artistima
     song_ratings = {rating['songId']: int(rating['stars']) for rating in ratings}
-    
+
     # Mapiranje pesama na albume i računanje prosečnih ocena
     album_ratings = defaultdict(list)
     genre_affinity = defaultdict(list)
@@ -101,12 +101,9 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
                 album_song_ratings.append(rating)
                 genre_affinity[album['genre']].append(rating)
                 artist_affinity[album['artistId']].append(rating)
-   
+    
     if album_song_ratings:
         album_ratings[album['albumId']] = sum(album_song_ratings) / len(album_song_ratings)
-        
-        if album_song_ratings:
-            album_ratings[album['albumId']] = sum(album_song_ratings) / len(album_song_ratings)
     
     # Prosečne ocene po žanrovima i artistima
     avg_genre_ratings = {}
@@ -133,7 +130,7 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
     current_hour = now.hour
     
     for entry in history:
-        timestamp = entry['timestamp']
+        timestamp = datetime.fromisoformat(entry['timestamp'])
         genre = entry['genre']
         artist = entry['artist']
         
@@ -145,6 +142,7 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
             recent_genre_frequency[genre] += 2
             recent_artist_frequency[artist] += 2
         
+        
         # Vremenska analiza - preferencije po satima
         hour = timestamp.hour
         hourly_genre_preferences[hour][genre] += 1
@@ -153,7 +151,9 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
     # Korak 4: Računanje konačnog afiniteta za svaki album
     album_scores = {}
     
+    
     for album in albums:
+        
         score = 0
         album_id = album['albumId']
         genre = album['genre']
@@ -221,8 +221,21 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
                           key=lambda album: album_scores.get(album['albumId'], 0), 
                           reverse=True)
     
+    sorted_albums = convert_decimals_to_float(sorted_albums)
+
     return sorted_albums
 
+
+def convert_decimals_to_float(obj):
+    """Rekurzivno konvertuje sve Decimal objekte u float"""
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_decimals_to_float(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimals_to_float(item) for item in obj]
+    else:
+        return obj
 
 def _get_all_content(table):
     try:
@@ -272,7 +285,7 @@ def get_all_albums():
         
         logger.info(f"Retrieved {len(albums)} albums")
         
-        return album
+        return albums
         
     except Exception as e:
         logger.error(f"Error getting all albums: {str(e)}")
@@ -513,6 +526,7 @@ def transform_subscription_for_response(item):
     return {
         'subscriptionId': item.get('subscriptionId'),
         'username': item.get('username'), 
+        'subscriptionType': item.get('subscriptionType'), 
         'targetId': item.get('targetId'),
         'targetName': item.get('targetName'),
         'timestamp': item.get('timestamp')
