@@ -7,6 +7,7 @@ from config import AppConfig
 from constructss.auth import AuthConstruct
 from constructss.database import DatabaseConstruct
 from constructss.api import ApiConstruct
+from constructss.transcription import TranscriptionConstruct
 from lambdas.user_lambdas import UserLambdas
 from constructss.s3 import S3Construct
 
@@ -17,16 +18,14 @@ class MusicAppStack(Stack):
         
         self.config = config
         
-        print(f"Creating Music App infrastructure with Albums and Discover functionality...")
+        transcription = TranscriptionConstruct(self, "Transcription", config)
         
         # Step 1: Create authentication system (Cognito)
         auth = AuthConstruct(self, "Auth", config)
         
-        # Step 2: Create database tables (DynamoDB) - now includes Albums table with performance optimizations
         database = DatabaseConstruct(self, "Database", config)
         s3 = S3Construct(self, "S3", config)
         
-        # Step 3: Create Lambda functions - now includes album management and enhanced discover
         user_lambdas = UserLambdas(
             self,
             "UserLambdas",
@@ -40,10 +39,11 @@ class MusicAppStack(Stack):
             database.music_content_table,
             s3.music_bucket,
             database.notifications_table,
-            database.albums_table  # NEW: Albums table
+            database.albums_table,
+            database.transcriptions_table,
+            transcription.transcription_queue 
         )
         
-        # Step 4: Create API Gateway - now includes album and discover endpoints
         api = ApiConstruct(
             self,
             "Api",
@@ -68,10 +68,11 @@ class MusicAppStack(Stack):
             user_lambdas.is_rated_function,
             user_lambdas.is_subscribed_function,
             user_lambdas.get_feed_function,
-            user_lambdas.discover_function,  # Enhanced discover with album support
-            user_lambdas.create_album_function,  # NEW: Album management
-            user_lambdas.get_albums_function,     # NEW: Album retrieval
-            user_lambdas.add_to_history_function
+            user_lambdas.discover_function, 
+            user_lambdas.create_album_function, 
+            user_lambdas.get_albums_function,     
+            user_lambdas.add_to_history_function,
+            user_lambdas.get_transcription_function
         )
         
         # Step 5: Create outputs
