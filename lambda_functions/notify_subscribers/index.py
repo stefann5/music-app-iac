@@ -43,7 +43,7 @@ def handler(event, context):
                 "subscriber": sub['username'],
                 "contentId": sub['targetId'],
                 "content": sub['targetName'],
-                "message": 'New content has been published by your subscription ' + sub['targetName']
+                "message": 'New content has been published by your subscription: ' + sub['targetName']
             }, event)
             notifications.append(notif)
 
