@@ -205,7 +205,8 @@ def handler(event, context):
             response_data['coverImageUrl'] = cover_image_url
         
         try:
-            trigger_transcription(content_id, file_key, bucket_name)
+            #trigger_transcription(content_id, file_key, bucket_name)
+            pass
         except Exception as e:
             print(f"Warning: Could not trigger transcription: {str(e)}")
         
