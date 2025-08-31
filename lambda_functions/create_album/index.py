@@ -45,7 +45,7 @@ def handler(event, context):
         
         # Create album
         album_id = str(uuid.uuid4())
-        album_data = create_album_record(album_id, body, event)
+        album_data = create_album_record(album_id, body)
         
         # Store in DynamoDB
         store_album(album_data)
@@ -62,8 +62,7 @@ def handler(event, context):
                 'title': album_data['title'],
                 'artistId': album_data['artistId'],
                 'genre': album_data['genre'],
-                'releaseYear': album_data.get('releaseYear'),
-                'trackCount': album_data['trackCount']
+                'tracksIds': album_data['tracksIds']
             }
         })
         
@@ -114,25 +113,10 @@ def validate_album_input(input_data):
     elif not isinstance(input_data['genre'], str):
         errors.append('Genre must be a string')
     
-    # Release year validation (optional)
-    if input_data.get('releaseYear'):
-        try:
-            year = int(input_data['releaseYear'])
-            current_year = datetime.now().year
-            if year < 1900 or year > current_year + 1:
-                errors.append(f'Release year must be between 1900 and {current_year + 1}')
-        except (ValueError, TypeError):
-            errors.append('Release year must be a valid number')
-    
-    # Track count validation (optional)
-    if input_data.get('trackCount'):
-        try:
-            track_count = int(input_data['trackCount'])
-            if track_count < 1:
-                errors.append('Track count must be a positive number')
-        except (ValueError, TypeError):
-            errors.append('Track count must be a valid number')
-    
+    # Validate if there are any tracks
+    if input_data.get('tracksIds') and len(input_data.get('tracksIds')) < 1:
+        errors.append('Number of tracks must be positive number')
+
     return {
         'is_valid': len(errors) == 0,
         'errors': errors
@@ -195,13 +179,8 @@ def normalize_genre(genre):
     
     return genre_mappings.get(normalized, normalized)
 
-def create_album_record(album_id, input_data, event):
+def create_album_record(album_id, input_data):
     """Create album record structure with discover optimizations"""
-    
-    # Get creator info from authorizer context
-    request_context = event.get('requestContext', {})
-    authorizer = request_context.get('authorizer', {})
-    creator_username = authorizer.get('username', 'unknown')
     
     # DISCOVER OPTIMIZATION: Normalize genre for consistent filtering
     normalized_genre = normalize_genre(input_data['genre'])
@@ -213,27 +192,9 @@ def create_album_record(album_id, input_data, event):
         'title': input_data['title'].strip(),
         'artistId': input_data['artistId'],
         'genre': normalized_genre,  # DISCOVER OPTIMIZATION
-        'description': input_data.get('description', '').strip(),
-        'releaseYear': input_data.get('releaseYear'),
-        'trackCount': input_data.get('trackCount', 0),
-        'duration': 0,  # Will be calculated from tracks
-        'coverImageUrl': input_data.get('coverImageUrl', ''),
-        'status': 'active',
+        'trackCount': len(input_data.get('tracksIds', [])),
         'createdAt': current_time,
-        'updatedAt': current_time,
-        'createdBy': creator_username,
-        'metadata': {
-            'totalPlays': 0,
-            'averageRating': 0,
-            'ratingCount': 0,
-            'totalDuration': 0,
-            'completedTracks': 0
-        },
-        # Additional metadata for rich album info
-        'recordLabel': input_data.get('recordLabel', ''),
-        'producer': input_data.get('producer', ''),
-        'tags': input_data.get('tags', []),
-        'isExplicit': input_data.get('isExplicit', False)
+        'tracksIds': input_data['tracksIds']
     }
 
 def store_album(album_data):
