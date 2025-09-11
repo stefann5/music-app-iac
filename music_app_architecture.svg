@@ -1,0 +1,189 @@
+<svg viewBox="0 0 1400 1000" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1400" height="1000" fill="#f8f9fa"/>
+  
+  <!-- Title -->
+  <text x="700" y="30" text-anchor="middle" font-size="24" font-weight="bold" fill="#2c3e50">Music Streaming Application Architecture</text>
+  
+  
+  
+  <!-- API Gateway -->
+  <rect x="500" y="180" width="400" height="60" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="8"/>
+  <text x="700" y="205" text-anchor="middle" font-size="14" font-weight="bold" fill="#856404">API Gateway</text>
+  <text x="700" y="225" text-anchor="middle" font-size="12" fill="#856404">REST API + CORS + Throttling</text>
+  
+  <!-- Authentication -->
+  <rect x="50" y="280" width="200" height="120" fill="#f8d7da" stroke="#dc3545" stroke-width="2" rx="8"/>
+  <text x="150" y="305" text-anchor="middle" font-size="14" font-weight="bold" fill="#721c24">Authentication</text>
+  <text x="150" y="325" text-anchor="middle" font-size="12" fill="#721c24">AWS Cognito</text>
+  <text x="150" y="345" text-anchor="middle" font-size="11" fill="#721c24">• User Pool</text>
+  <text x="150" y="360" text-anchor="middle" font-size="11" fill="#721c24">• User Groups</text>
+  <text x="150" y="375" text-anchor="middle" font-size="11" fill="#721c24">• JWT Tokens</text>
+  <text x="150" y="390" text-anchor="middle" font-size="11" fill="#721c24">• Lambda Authorizer</text>
+  
+  <!-- Lambda Functions -->
+  <rect x="300" y="280" width="800" height="300" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" rx="8"/>
+  <text x="700" y="305" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c5460">Lambda Functions</text>
+  
+  <!-- Auth Lambdas -->
+  <rect x="320" y="320" width="160" height="80" fill="#ffffff" stroke="#17a2b8" stroke-width="1" rx="4"/>
+  <text x="400" y="340" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c5460">Auth Functions</text>
+  <text x="400" y="355" text-anchor="middle" font-size="10" fill="#0c5460">• Registration</text>
+  <text x="400" y="370" text-anchor="middle" font-size="10" fill="#0c5460">• Login</text>
+  <text x="400" y="385" text-anchor="middle" font-size="10" fill="#0c5460">• Refresh Token</text>
+  
+  <!-- Content Management Lambdas -->
+  <rect x="500" y="320" width="160" height="80" fill="#ffffff" stroke="#17a2b8" stroke-width="1" rx="4"/>
+  <text x="580" y="340" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c5460">Content Mgmt</text>
+  <text x="580" y="355" text-anchor="middle" font-size="10" fill="#0c5460">• Artists CRUD</text>
+  <text x="580" y="370" text-anchor="middle" font-size="10" fill="#0c5460">• Albums CRUD</text>
+  <text x="580" y="385" text-anchor="middle" font-size="10" fill="#0c5460">• Music CRUD</text>
+  
+  <!-- User Activity Lambdas -->
+  <rect x="680" y="320" width="160" height="80" fill="#ffffff" stroke="#17a2b8" stroke-width="1" rx="4"/>
+  <text x="760" y="340" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c5460">User Activity</text>
+  <text x="760" y="355" text-anchor="middle" font-size="10" fill="#0c5460">• Ratings</text>
+  <text x="760" y="370" text-anchor="middle" font-size="10" fill="#0c5460">• Subscriptions</text>
+  <text x="760" y="385" text-anchor="middle" font-size="10" fill="#0c5460">• Notifications</text>
+  
+  <!-- Discovery Lambdas -->
+  <rect x="860" y="320" width="160" height="80" fill="#ffffff" stroke="#17a2b8" stroke-width="1" rx="4"/>
+  <text x="940" y="340" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c5460">Discovery</text>
+  <text x="940" y="355" text-anchor="middle" font-size="10" fill="#0c5460">• Genre Browse</text>
+  <text x="940" y="370" text-anchor="middle" font-size="10" fill="#0c5460">• Content Feed</text>
+  <text x="940" y="385" text-anchor="middle" font-size="10" fill="#0c5460">• Recommendations</text>
+  
+  <!-- Transcription Lambdas -->
+  <rect x="320" y="420" width="240" height="80" fill="#ffffff" stroke="#17a2b8" stroke-width="1" rx="4"/>
+  <text x="440" y="440" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c5460">Transcription</text>
+  <text x="440" y="455" text-anchor="middle" font-size="10" fill="#0c5460">• Start Transcription</text>
+  <text x="440" y="470" text-anchor="middle" font-size="10" fill="#0c5460">• Monitor Jobs</text>
+  <text x="440" y="485" text-anchor="middle" font-size="10" fill="#0c5460">• Get Results</text>
+  
+  <!-- Utilities -->
+  <rect x="580" y="420" width="160" height="80" fill="#ffffff" stroke="#17a2b8" stroke-width="1" rx="4"/>
+  <text x="660" y="440" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c5460">Utilities</text>
+  <text x="660" y="455" text-anchor="middle" font-size="10" fill="#0c5460">• History Tracking</text>
+  <text x="660" y="470" text-anchor="middle" font-size="10" fill="#0c5460">• Status Checks</text>
+  <text x="660" y="485" text-anchor="middle" font-size="10" fill="#0c5460">• Data Processing</text>
+  
+  <!-- External Services -->
+  <rect x="780" y="420" width="240" height="80" fill="#ffffff" stroke="#17a2b8" stroke-width="1" rx="4"/>
+  <text x="900" y="440" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c5460">External Services</text>
+  <text x="900" y="455" text-anchor="middle" font-size="10" fill="#0c5460">• Amazon Transcribe</text>
+  <text x="900" y="470" text-anchor="middle" font-size="10" fill="#0c5460">• SQS Queue</text>
+  <text x="900" y="485" text-anchor="middle" font-size="10" fill="#0c5460">• Job Monitoring</text>
+  
+  <!-- Storage Layer -->
+  <rect x="50" y="620" width="1300" height="180" fill="#f3e5f5" stroke="#9c27b0" stroke-width="2" rx="10"/>
+  <text x="700" y="645" text-anchor="middle" font-size="16" font-weight="bold" fill="#4a148c">Data Storage Layer</text>
+  
+  <!-- DynamoDB -->
+  <rect x="70" y="660" width="800" height="130" fill="#ffffff" stroke="#9c27b0" stroke-width="1" rx="6"/>
+  <text x="470" y="680" text-anchor="middle" font-size="14" font-weight="bold" fill="#4a148c">Amazon DynamoDB</text>
+  
+  <!-- DynamoDB Tables -->
+  <rect x="90" y="690" width="100" height="90" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="140" y="710" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Users</text>
+  <text x="140" y="725" text-anchor="middle" font-size="9" fill="#4a148c">• Profile</text>
+  <text x="140" y="738" text-anchor="middle" font-size="9" fill="#4a148c">• Preferences</text>
+  <text x="140" y="751" text-anchor="middle" font-size="9" fill="#4a148c">• History</text>
+  <text x="140" y="764" text-anchor="middle" font-size="9" fill="#4a148c">• Stats</text>
+  
+  <rect x="210" y="690" width="100" height="90" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="260" y="710" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Artists</text>
+  <text x="260" y="725" text-anchor="middle" font-size="9" fill="#4a148c">• Biography</text>
+  <text x="260" y="738" text-anchor="middle" font-size="9" fill="#4a148c">• Genres</text>
+  <text x="260" y="751" text-anchor="middle" font-size="9" fill="#4a148c">• Metadata</text>
+  <text x="260" y="764" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Genre</text>
+  
+  <rect x="330" y="690" width="100" height="90" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="380" y="710" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Albums</text>
+  <text x="380" y="725" text-anchor="middle" font-size="9" fill="#4a148c">• Title</text>
+  <text x="380" y="738" text-anchor="middle" font-size="9" fill="#4a148c">• Track Count</text>
+  <text x="380" y="751" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Genre</text>
+  <text x="380" y="764" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Artist</text>
+  
+  <rect x="450" y="690" width="100" height="90" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="500" y="710" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Music</text>
+  <text x="500" y="738" text-anchor="middle" font-size="9" fill="#4a148c">• Metadata</text>
+  <text x="500" y="751" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Album</text>
+  <text x="500" y="764" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Genre</text>
+  
+  <rect x="570" y="690" width="100" height="90" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="620" y="710" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Ratings</text>
+  <text x="620" y="725" text-anchor="middle" font-size="9" fill="#4a148c">• Stars (1-5)</text>
+  <text x="620" y="738" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: User</text>
+  <text x="620" y="751" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Song</text>
+  <text x="620" y="764" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Album</text>
+  
+  <rect x="690" y="690" width="100" height="90" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="740" y="710" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Subscriptions</text>
+  <text x="740" y="725" text-anchor="middle" font-size="9" fill="#4a148c">• Artists</text>
+  <text x="740" y="738" text-anchor="middle" font-size="9" fill="#4a148c">• Genres</text>
+  <text x="740" y="751" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Type</text>
+  <text x="740" y="764" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: Target</text>
+  
+  <rect x="810" y="690" width="100" height="55" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="860" y="710" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Notifications</text>
+  <text x="860" y="725" text-anchor="middle" font-size="9" fill="#4a148c">• Messages</text>
+  <text x="860" y="738" text-anchor="middle" font-size="9" fill="#4a148c">• GSI: User</text>
+  
+  <rect x="810" y="750" width="100" height="40" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" rx="4"/>
+  <text x="860" y="765" text-anchor="middle" font-size="11" font-weight="bold" fill="#4a148c">Transcriptions</text>
+  <text x="860" y="780" text-anchor="middle" font-size="9" fill="#4a148c">• Lyrics/Text</text>
+  
+  <!-- S3 Storage -->
+  <rect x="920" y="660" width="160" height="130" fill="#ffffff" stroke="#ff9800" stroke-width="1" rx="6"/>
+  <text x="1000" y="680" text-anchor="middle" font-size="14" font-weight="bold" fill="#e65100">Amazon S3</text>
+  <text x="1000" y="700" text-anchor="middle" font-size="12" fill="#e65100">Music Files Bucket</text>
+  <text x="1000" y="720" text-anchor="middle" font-size="10" fill="#e65100">• Audio Files</text>
+  <text x="1000" y="735" text-anchor="middle" font-size="10" fill="#e65100">• Cover Images</text>
+  <text x="1000" y="750" text-anchor="middle" font-size="10" fill="#e65100">• Transcription Results</text>
+  
+  
+  <!-- SQS Queue -->
+  <rect x="1120" y="660" width="160" height="130" fill="#ffffff" stroke="#673ab7" stroke-width="1" rx="6"/>
+  <text x="1200" y="680" text-anchor="middle" font-size="14" font-weight="bold" fill="#311b92">Amazon SQS</text>
+  <text x="1200" y="700" text-anchor="middle" font-size="12" fill="#311b92">Transcription Queue</text>
+  <text x="1200" y="720" text-anchor="middle" font-size="10" fill="#311b92">• Job Monitoring</text>
+  <text x="1200" y="735" text-anchor="middle" font-size="10" fill="#311b92">• Status Updates</text>
+  <text x="1200" y="750" text-anchor="middle" font-size="10" fill="#311b92">• Error Handling</text>
+  <text x="1200" y="765" text-anchor="middle" font-size="10" fill="#311b92">• Dead Letter Queue</text>
+  <text x="1200" y="780" text-anchor="middle" font-size="10" fill="#311b92">• Retry Logic</text>
+  
+  
+  
+  <!-- Data Flow Arrows -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+    </marker>
+  </defs>
+  
+  
+  
+  <!-- API Gateway to Auth -->
+  <line x1="500" y1="210" x2="250" y2="280" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- API Gateway to Lambda -->
+  <line x1="700" y1="240" x2="700" y2="280" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Lambda to DynamoDB -->
+  <line x1="470" y1="580" x2="470" y2="660" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Lambda to S3 -->
+  <line x1="800" y1="580" x2="950" y2="660" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Lambda to SQS -->
+  <line x1="900" y1="580" x2="1150" y2="660" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  
+  <text x="350" y="250" text-anchor="middle" font-size="10" fill="#666">JWT Auth</text>
+  <text x="650" y="260" text-anchor="middle" font-size="10" fill="#666">Protected Endpoints</text>
+  <text x="350" y="630" text-anchor="middle" font-size="10" fill="#666">Data Operations</text>
+  <text x="870" y="630" text-anchor="middle" font-size="10" fill="#666">File Storage</text>
+  <text x="1020" y="630" text-anchor="middle" font-size="10" fill="#666">Queue Processing</text>
+  
+  
+</svg>
