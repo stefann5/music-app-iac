@@ -1,6 +1,5 @@
 import json
 import boto3
-import uuid
 import os
 from datetime import datetime
 import logging
@@ -14,7 +13,8 @@ sqs = boto3.client('sqs')
 
 def handler(event, context):
     """
-    Start Transcription Handler - FIXED with duplicate prevention
+    Start Transcription Handler - Updated to use contentId as primary key
+    Simplified logic since contentId is now the key
     """
     
     logger.info(f"Start transcription event: {json.dumps(event)}")
@@ -24,6 +24,8 @@ def handler(event, context):
         content_id = event.get('contentId')
         s3_key = event.get('s3Key')
         bucket_name = event.get('bucketName')
+        
+        logger.info(f"contentId: {content_id}")
         
         if not all([content_id, s3_key, bucket_name]):
             raise ValueError(f"Missing required parameters: contentId={content_id}, s3Key={s3_key}, bucketName={bucket_name}")
@@ -35,34 +37,38 @@ def handler(event, context):
             
             # If it's failed and retries are available, continue with retry
             if existing_transcription['status'] == 'FAILED' and existing_transcription.get('retryCount', 0) < 3:
-                logger.info(f"Retrying failed transcription: {existing_transcription['transcriptionId']}")
-                transcription_id = existing_transcription['transcriptionId']
-            else:
-                # Skip if already exists and not failed or out of retries
+                logger.info(f"Retrying failed transcription for content: {content_id}")
+                # Continue with retry logic below
+            elif existing_transcription['status'] == 'PROCESSING':
+                logger.info(f"Transcription already in progress for content: {content_id}")
                 return {
                     'statusCode': 200,
                     'body': json.dumps({
-                        'message': 'Transcription already exists or processing',
-                        'transcriptionId': existing_transcription['transcriptionId'],
+                        'message': 'Transcription already in progress',
+                        'contentId': content_id,
                         'status': existing_transcription['status']
                     })
                 }
-        else:
-            # Create new transcription record
-            transcription_id = str(uuid.uuid4())
+            elif existing_transcription['status'] == 'COMPLETED':
+                logger.info(f"Transcription already completed for content: {content_id}")
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps({
+                        'message': 'Transcription already completed',
+                        'contentId': content_id,
+                        'status': existing_transcription['status']
+                    })
+                }
         
-        transcription_record = create_transcription_record(
-            transcription_id, 
-            content_id, 
-            s3_key, 
-            bucket_name
-        )
+        # Create or update transcription record
+        transcription_record = create_transcription_record(content_id, s3_key, bucket_name)
         
-        # Store/update in DynamoDB
+        # Store/update in DynamoDB (upsert)
         store_transcription_record(transcription_record)
         
-        # Start Amazon Transcribe job
-        job_name = f"transcription-{transcription_id}"
+        # Generate unique job name (include timestamp to avoid conflicts)
+        timestamp = datetime.utcnow().strftime('%Y%m%d-%H%M%S')
+        job_name = f"transcription-{content_id}-{timestamp}"
         media_uri = f"s3://{bucket_name}/{s3_key}"
         
         logger.info(f"Starting transcription job: {job_name}")
@@ -72,26 +78,26 @@ def handler(event, context):
             TranscriptionJobName=job_name,
             Media={'MediaFileUri': media_uri},
             MediaFormat=get_audio_format(s3_key),
-            LanguageCode='en-US',  # Serbian language
+            LanguageCode='en-US',
             Settings={
                 'ShowSpeakerLabels': False,
                 'ShowAlternatives': True,
                 'MaxAlternatives': 2
             },
             OutputBucketName=bucket_name,
-            OutputKey=f"transcriptions/{transcription_id}/result.json"
+            OutputKey=f"transcriptions/{content_id}/result.json"
         )
         
         logger.info(f"Transcribe job started: {transcribe_response['TranscriptionJob']['TranscriptionJobName']}")
         
-        # Update status to PROCESSING
-        update_transcription_status(transcription_id, 'PROCESSING', {
+        # Update status to PROCESSING with job name
+        update_transcription_status(content_id, 'PROCESSING', {
             'jobName': job_name,
             'startedAt': datetime.utcnow().isoformat()
         })
         
         # Send message to SQS for monitoring
-        send_monitoring_message(transcription_id, job_name)
+        send_monitoring_message(content_id, job_name)
         
         logger.info(f"Transcription started successfully: {job_name}")
         
@@ -99,20 +105,24 @@ def handler(event, context):
             'statusCode': 200,
             'body': json.dumps({
                 'message': 'Transcription started successfully',
-                'transcriptionId': transcription_id,
-                'jobName': job_name
+                'contentId': content_id,
+                'jobName': job_name,
+                'status': 'PROCESSING'
             })
         }
         
     except Exception as e:
         logger.error(f"Error starting transcription: {str(e)}")
         
-        # Update status to FAILED if we have transcription_id
-        if 'transcription_id' in locals():
-            update_transcription_status(transcription_id, 'FAILED', {
-                'error': str(e),
-                'failedAt': datetime.utcnow().isoformat()
-            })
+        # Update status to FAILED if we have content_id
+        if 'content_id' in locals():
+            try:
+                update_transcription_status(content_id, 'FAILED', {
+                    'errorMessage': str(e),
+                    'failedAt': datetime.utcnow().isoformat()
+                })
+            except Exception as update_error:
+                logger.error(f"Error updating failed status: {str(update_error)}")
         
         return {
             'statusCode': 500,
@@ -120,34 +130,28 @@ def handler(event, context):
         }
 
 def check_existing_transcription(content_id):
-    """Check if transcription already exists for this content"""
+    """Check if transcription already exists for this content using contentId as key"""
     try:
         table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
         
-        response = table.query(
-            IndexName='contentId-index',
-            KeyConditionExpression='contentId = :content_id',
-            ExpressionAttributeValues={':content_id': content_id},
-            ScanIndexForward=False,  # Get latest first
-            Limit=1
+        # Direct get_item since contentId is now the primary key
+        response = table.get_item(
+            Key={'contentId': content_id}
         )
         
-        if response['Items']:
-            return response['Items'][0]
-        return None
+        return response.get('Item')
         
     except Exception as e:
         logger.error(f"Error checking existing transcription: {str(e)}")
         return None
 
-def create_transcription_record(transcription_id, content_id, s3_key, bucket_name):
-    """Create initial transcription record"""
+def create_transcription_record(content_id, s3_key, bucket_name):
+    """Create initial transcription record using contentId as key"""
     return {
-        'transcriptionId': transcription_id,
-        'contentId': content_id,
+        'contentId': content_id,  # Now the primary key
         's3Key': s3_key,
         'bucketName': bucket_name,
-        'status': 'PROCESSING',  # Set to PROCESSING immediately
+        'status': 'PROCESSING',
         'createdAt': datetime.utcnow().isoformat(),
         'updatedAt': datetime.utcnow().isoformat(),
         'retryCount': 0,
@@ -159,13 +163,13 @@ def create_transcription_record(transcription_id, content_id, s3_key, bucket_nam
     }
 
 def store_transcription_record(record):
-    """Store transcription record in DynamoDB"""
+    """Store transcription record in DynamoDB using contentId as key"""
     table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
     table.put_item(Item=record)
-    logger.info(f"Transcription record stored: {record['transcriptionId']}")
+    logger.info(f"Transcription record stored for content: {record['contentId']}")
 
-def update_transcription_status(transcription_id, status, additional_data=None):
-    """Update transcription status"""
+def update_transcription_status(content_id, status, additional_data=None):
+    """Update transcription status using contentId as key"""
     table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
     
     update_expression = "SET #status = :status, updatedAt = :updated_at"
@@ -177,17 +181,23 @@ def update_transcription_status(transcription_id, status, additional_data=None):
     
     if additional_data:
         for key, value in additional_data.items():
-            update_expression += f", {key} = :{key}"
+            # Handle reserved keywords
+            if key in ['error', 'status', 'size', 'type', 'name', 'data', 'timestamp']:
+                attr_name = f"#{key}"
+                expression_names[attr_name] = key
+                update_expression += f", {attr_name} = :{key}"
+            else:
+                update_expression += f", {key} = :{key}"
             expression_values[f':{key}'] = value
     
     table.update_item(
-        Key={'transcriptionId': transcription_id},
+        Key={'contentId': content_id},  # Using contentId as key
         UpdateExpression=update_expression,
         ExpressionAttributeValues=expression_values,
         ExpressionAttributeNames=expression_names
     )
     
-    logger.info(f"Transcription status updated: {transcription_id} -> {status}")
+    logger.info(f"Transcription status updated: {content_id} -> {status}")
 
 def get_audio_format(s3_key):
     """Determine audio format from file extension"""
@@ -201,11 +211,11 @@ def get_audio_format(s3_key):
     }
     return format_mapping.get(extension, 'mp3')
 
-def send_monitoring_message(transcription_id, job_name):
-    """Send message to SQS for transcription monitoring"""
+def send_monitoring_message(content_id, job_name):
+    """Send message to SQS for transcription monitoring using contentId"""
     try:
         message = {
-            'transcriptionId': transcription_id,
+            'contentId': content_id,  # Using contentId instead of transcriptionId
             'jobName': job_name,
             'action': 'monitor',
             'timestamp': datetime.utcnow().isoformat()
