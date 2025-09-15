@@ -216,7 +216,7 @@ def handler(event, context):
             "body": json.dumps({
                 "message": "Music content created successfully. Transcription started.",
                 "contentId": content_id,
-                "transcriptionStatus": "PENDING"
+                "transcriptionStatus": "PROCESSING"
             })
         }
     except json.JSONDecodeError:

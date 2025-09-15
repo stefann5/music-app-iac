@@ -14,6 +14,7 @@ def handler(event, context):
     """
     Get Transcription Handler - Enhanced with HTML formatting for subtitles
     Returns transcription with timing data for frontend subtitle display
+    Uses contentId as primary key for direct access
     """
     
     try:
@@ -25,7 +26,7 @@ def handler(event, context):
         if not content_id:
             return create_error_response(400, "contentId parameter is required")
         
-        # Get transcription from DynamoDB
+        # Get transcription from DynamoDB using contentId as key
         transcription = get_transcription_by_content_id(content_id)
         
         if not transcription:
@@ -38,7 +39,6 @@ def handler(event, context):
         # Base response data
         response_data = {
             'contentId': content_id,
-            'transcriptionId': transcription['transcriptionId'],
             'status': transcription['status'],
             'createdAt': transcription['createdAt'],
             'updatedAt': transcription['updatedAt']
@@ -70,9 +70,12 @@ def handler(event, context):
             
         elif transcription['status'] == 'PROCESSING':
             response_data['message'] = 'Transcription is still being processed'
+            if 'jobName' in transcription:
+                response_data['jobName'] = transcription['jobName']
         elif transcription['status'] == 'FAILED':
             response_data['message'] = 'Transcription failed'
             response_data['errorMessage'] = transcription.get('errorMessage', 'Unknown error')
+            response_data['retryCount'] = transcription.get('retryCount', 0)
             
         return create_success_response(200, response_data)
         
@@ -80,6 +83,23 @@ def handler(event, context):
         logger.error(f"Error getting transcription: {str(e)}")
         return create_error_response(500, "Internal server error")
 
+def get_transcription_by_content_id(content_id):
+    """Get transcription record by contentId (now primary key)"""
+    try:
+        table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
+        
+        # Direct get_item since contentId is now the primary key
+        response = table.get_item(
+            Key={'contentId': content_id}
+        )
+        
+        return response.get('Item')
+        
+    except Exception as e:
+        logger.error(f"Error querying transcription: {str(e)}")
+        return None
+
+# [Rest of the helper functions remain the same]
 def generate_html_subtitles(raw_data):
     """
     Generate HTML with timing data for synchronized subtitles
@@ -537,27 +557,6 @@ def generate_vtt_from_items(items):
         vtt_lines.append(text)
     
     return '\n'.join(vtt_lines)
-
-def get_transcription_by_content_id(content_id):
-    """Get transcription record by contentId"""
-    try:
-        table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
-        
-        response = table.query(
-            IndexName='contentId-index',
-            KeyConditionExpression='contentId = :content_id',
-            ExpressionAttributeValues={':content_id': content_id},
-            ScanIndexForward=False,  # Get latest first
-            Limit=1
-        )
-        
-        if response['Items']:
-            return response['Items'][0]
-        return None
-        
-    except Exception as e:
-        logger.error(f"Error querying transcription: {str(e)}")
-        return None
 
 def create_success_response(status_code, data):
     return {

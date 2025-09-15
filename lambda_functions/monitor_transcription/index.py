@@ -14,7 +14,7 @@ s3 = boto3.client('s3')
 sqs = boto3.client('sqs')
 
 def handler(event, context):
-    """Monitor Transcription Handler - FIXED S3 URL parsing"""
+    """Monitor Transcription Handler - Updated to use contentId as primary key"""
     
     logger.info(f"Monitor transcription event: {json.dumps(event)}")
     
@@ -23,10 +23,10 @@ def handler(event, context):
     for record in event['Records']:
         try:
             message = json.loads(record['body'])
-            transcription_id = message['transcriptionId']
+            content_id = message['contentId']  # Changed from transcriptionId
             job_name = message['jobName']
             
-            logger.info(f"Processing transcription: {transcription_id}, job: {job_name}")
+            logger.info(f"Processing transcription: {content_id}, job: {job_name}")
             
             # Check transcription job status
             job_status = check_transcription_job(job_name)
@@ -35,23 +35,23 @@ def handler(event, context):
             
             if job_status == 'COMPLETED':
                 # Process completed transcription
-                process_completed_transcription(transcription_id, job_name)
+                process_completed_transcription(content_id, job_name)
                 processed_messages.append(record['receiptHandle'])
                 
             elif job_status == 'FAILED':
                 # Handle failed transcription
-                handle_failed_transcription(transcription_id, job_name)
+                handle_failed_transcription(content_id, job_name)
                 processed_messages.append(record['receiptHandle'])
                 
             elif job_status == 'IN_PROGRESS':
                 # Re-queue for later monitoring (with delay)
-                requeue_monitoring(transcription_id, job_name)
+                requeue_monitoring(content_id, job_name)
                 processed_messages.append(record['receiptHandle'])
                 
             elif job_status == 'NOT_FOUND':
                 logger.error(f"Transcription job not found: {job_name}")
                 # Mark as failed
-                update_transcription_status(transcription_id, 'FAILED', {
+                update_transcription_status(content_id, 'FAILED', {
                     'errorMessage': 'Transcription job not found',
                     'failedAt': datetime.utcnow().isoformat()
                 })
@@ -90,7 +90,7 @@ def check_transcription_job(job_name):
         logger.error(f"Error checking job {job_name}: {str(e)}")
         return 'ERROR'
 
-def process_completed_transcription(transcription_id, job_name):
+def process_completed_transcription(content_id, job_name):
     """Process completed transcription job"""
     try:
         # Get job details
@@ -105,14 +105,14 @@ def process_completed_transcription(transcription_id, job_name):
         transcript_data = download_transcript(transcript_uri)
         parsed_text = parse_transcript(transcript_data)
         
-        # Update DynamoDB record
-        update_transcription_completed(transcription_id, parsed_text, transcript_data)
+        # Update DynamoDB record using contentId as key
+        update_transcription_completed(content_id, parsed_text, transcript_data)
         
-        logger.info(f"Transcription completed successfully: {transcription_id}")
+        logger.info(f"Transcription completed successfully: {content_id}")
         
     except Exception as e:
         logger.error(f"Error processing completed transcription: {str(e)}")
-        update_transcription_status(transcription_id, 'FAILED', {
+        update_transcription_status(content_id, 'FAILED', {
             'errorMessage': str(e),
             'failedAt': datetime.utcnow().isoformat()
         })
@@ -200,7 +200,7 @@ def parse_transcript(transcript_data):
             if alternatives:
                 confidence = alternatives[0].get('confidence')
                 if confidence is not None:
-                    confidence_scores.append(str(confidence))
+                    confidence_scores.append(float(confidence))
         
         avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
         
@@ -223,13 +223,13 @@ def parse_transcript(transcript_data):
             'items': []
         }
 
-def update_transcription_completed(transcription_id, parsed_text, raw_data):
-    """Update transcription record with completed data"""
+def update_transcription_completed(content_id, parsed_text, raw_data):
+    """Update transcription record with completed data using contentId as key"""
     try:
         table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
         
         table.update_item(
-            Key={'transcriptionId': transcription_id},
+            Key={'contentId': content_id},  # Changed from transcriptionId to contentId
             UpdateExpression="""
                 SET #status = :status,
                     transcriptionText = :text,
@@ -245,22 +245,22 @@ def update_transcription_completed(transcription_id, parsed_text, raw_data):
             ExpressionAttributeValues={
                 ':status': 'COMPLETED',
                 ':text': parsed_text['text'],
-                ':confidence': parsed_text['confidence'],
-                ':word_count': parsed_text['word_count'],
+                ':confidence': str(parsed_text['confidence']),
+                ':word_count': str(parsed_text['word_count']),
                 ':completed_at': datetime.utcnow().isoformat(),
                 ':updated_at': datetime.utcnow().isoformat(),
                 ':raw_data': raw_data
             }
         )
         
-        logger.info(f"Transcription marked as completed: {transcription_id}")
+        logger.info(f"Transcription marked as completed: {content_id}")
         
     except Exception as e:
         logger.error(f"Error updating completed transcription: {str(e)}")
         raise
 
-def update_transcription_status(transcription_id, status, additional_data=None):
-    """Update transcription status"""
+def update_transcription_status(content_id, status, additional_data=None):
+    """Update transcription status using contentId as key"""
     try:
         table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
         
@@ -284,52 +284,52 @@ def update_transcription_status(transcription_id, status, additional_data=None):
                 expression_values[f':{key}'] = value
         
         table.update_item(
-            Key={'transcriptionId': transcription_id},
+            Key={'contentId': content_id},  # Changed from transcriptionId to contentId
             UpdateExpression=update_expression,
             ExpressionAttributeValues=expression_values,
             ExpressionAttributeNames=expression_names
         )
         
-        logger.info(f"Transcription status updated: {transcription_id} -> {status}")
+        logger.info(f"Transcription status updated: {content_id} -> {status}")
         
     except Exception as e:
         logger.error(f"Error updating transcription status: {str(e)}")
         raise
 
-def handle_failed_transcription(transcription_id, job_name):
-    """Handle failed transcription with retry logic"""
+def handle_failed_transcription(content_id, job_name):
+    """Handle failed transcription with retry logic using contentId as key"""
     try:
         table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
-        response = table.get_item(Key={'transcriptionId': transcription_id})
+        response = table.get_item(Key={'contentId': content_id})  # Changed from transcriptionId
         
         if 'Item' not in response:
-            logger.error(f"Transcription record not found: {transcription_id}")
+            logger.error(f"Transcription record not found: {content_id}")
             return
             
         record = response['Item']
         retry_count = record.get('retryCount', 0)
         max_retries = 3
         
-        logger.info(f"Handling failed transcription: {transcription_id}, retries: {retry_count}/{max_retries}")
+        logger.info(f"Handling failed transcription: {content_id}, retries: {retry_count}/{max_retries}")
         
         if retry_count < max_retries:
-            retry_transcription(transcription_id, record)
+            retry_transcription(content_id, record)
         else:
-            update_transcription_status(transcription_id, 'FAILED', {
+            update_transcription_status(content_id, 'FAILED', {
                 'errorMessage': 'Max retries exceeded',
                 'failedAt': datetime.utcnow().isoformat()
             })
-            logger.info(f"Max retries exceeded for transcription: {transcription_id}")
+            logger.info(f"Max retries exceeded for transcription: {content_id}")
             
     except Exception as e:
         logger.error(f"Error handling failed transcription: {str(e)}")
 
-def retry_transcription(transcription_id, record):
-    """Retry failed transcription"""
+def retry_transcription(content_id, record):
+    """Retry failed transcription using contentId as key"""
     try:
         table = dynamodb.Table(os.environ['TRANSCRIPTIONS_TABLE'])
         table.update_item(
-            Key={'transcriptionId': transcription_id},
+            Key={'contentId': content_id},  # Changed from transcriptionId to contentId
             UpdateExpression="SET retryCount = retryCount + :one, updatedAt = :updated_at",
             ExpressionAttributeValues={
                 ':one': 1,
@@ -337,7 +337,7 @@ def retry_transcription(transcription_id, record):
             }
         )
         
-        retry_job_name = f"transcription-retry-{transcription_id}-{record.get('retryCount', 0) + 1}"
+        retry_job_name = f"transcription-retry-{content_id}-{record.get('retryCount', 0) + 1}"
         media_uri = f"s3://{record['bucketName']}/{record['s3Key']}"
         
         transcribe_client.start_transcription_job(
@@ -351,7 +351,14 @@ def retry_transcription(transcription_id, record):
             }
         )
         
-        send_monitoring_message(transcription_id, retry_job_name)
+        # Update job name in the record
+        table.update_item(
+            Key={'contentId': content_id},
+            UpdateExpression="SET jobName = :job_name",
+            ExpressionAttributeValues={':job_name': retry_job_name}
+        )
+        
+        send_monitoring_message(content_id, retry_job_name)
         logger.info(f"Transcription retry started: {retry_job_name}")
         
     except Exception as e:
@@ -369,11 +376,11 @@ def get_audio_format(s3_key):
     }
     return format_mapping.get(extension, 'mp3')
 
-def requeue_monitoring(transcription_id, job_name):
-    """Re-queue transcription for monitoring"""
+def requeue_monitoring(content_id, job_name):
+    """Re-queue transcription for monitoring using contentId"""
     try:
         message = {
-            'transcriptionId': transcription_id,
+            'contentId': content_id,  # Changed from transcriptionId
             'jobName': job_name,
             'action': 'monitor',
             'timestamp': datetime.utcnow().isoformat()
@@ -385,16 +392,16 @@ def requeue_monitoring(transcription_id, job_name):
             DelaySeconds=120
         )
         
-        logger.info(f"Transcription re-queued for monitoring: {transcription_id}")
+        logger.info(f"Transcription re-queued for monitoring: {content_id}")
         
     except Exception as e:
         logger.error(f"Error re-queuing monitoring: {str(e)}")
 
-def send_monitoring_message(transcription_id, job_name):
-    """Send message to SQS for transcription monitoring"""
+def send_monitoring_message(content_id, job_name):
+    """Send message to SQS for transcription monitoring using contentId"""
     try:
         message = {
-            'transcriptionId': transcription_id,
+            'contentId': content_id,  # Changed from transcriptionId
             'jobName': job_name,
             'action': 'monitor',
             'timestamp': datetime.utcnow().isoformat()
@@ -406,7 +413,7 @@ def send_monitoring_message(transcription_id, job_name):
             DelaySeconds=60
         )
         
-        logger.info(f"Monitoring message sent: {transcription_id}")
+        logger.info(f"Monitoring message sent: {content_id}")
         
     except Exception as e:
         logger.error(f"Error sending monitoring message: {str(e)}")
