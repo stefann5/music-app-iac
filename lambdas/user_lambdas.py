@@ -26,7 +26,8 @@ class UserLambdas(Construct):
         notifications_table,
         albums_table,
         transcriptions_table,  
-        transcription_queue
+        transcription_queue,
+        feed_table
     ):
         super().__init__(scope, id)
         
@@ -43,6 +44,7 @@ class UserLambdas(Construct):
         self.albums_table = albums_table 
         self.transcriptions_table = transcriptions_table
         self.transcription_queue = transcription_queue
+        self.feed_table = feed_table
         
         print(f"Creating registration Lambda function...")
         self.registration_function = self._create_registration_function()
@@ -84,7 +86,7 @@ class UserLambdas(Construct):
         self.get_music_content_function = self._create_get_music_content_function()
 
         print(f"Creating get feed Lambda function...")
-        self.get_feed_function = self._create_get_feed_function()
+        self.calculate_feed_function = self._create_calculate_feed_function()
 
         print(f"Creating delete music content Lambda function...")
         self.delete_music_content_function = self._create_delete_music_content_function()
@@ -497,20 +499,21 @@ class UserLambdas(Construct):
             }
         )
     
-    def _create_get_feed_function(self) -> _lambda.Function:
+    def _create_calculate_feed_function(self) -> _lambda.Function:
         return _lambda.Function(
             self,
-            "GetFeedFunction",
-            function_name=f"{self.config.app_name}-GetFeed",
+            "CalculateFeedFunction",
+            function_name=f"{self.config.app_name}-CalculateFeed",
             runtime=_lambda.Runtime.PYTHON_3_9,
             handler="index.handler",
-            code=_lambda.Code.from_asset("lambda_functions/get_feed"),
+            code=_lambda.Code.from_asset("lambda_functions/calculate_feed"),
             timeout=Duration.seconds(self.config.lambda_timeout),
             memory_size=self.config.lambda_memory,
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
                 'ALBUMS_TABLE': self.albums_table.table_name,
+                'FEED_TABLE': self.feed_table.table_name,
                 'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
                 'USERS_TABLE': self.users_table.table_name,
                 'RATINGS_TABLE': self.ratings_table.table_name,
@@ -722,7 +725,7 @@ class UserLambdas(Construct):
         # DynamoDB permissions for existing functions
         self.users_table.grant_read_write_data(self.login_function)
         self.users_table.grant_read_write_data(self.registration_function)
-        self.users_table.grant_read_data(self.get_feed_function)
+        self.users_table.grant_read_data(self.calculate_feed_function)
         self.users_table.grant_read_data(self.get_music_content_function)
         self.artists_table.grant_read_write_data(self.create_artist_function)
         self.ratings_table.grant_read_write_data(self.create_rating_function)
@@ -736,13 +739,13 @@ class UserLambdas(Construct):
 
         self.subscriptions_table.grant_read_data(self.is_subscribed_function)
 
-        self.subscriptions_table.grant_read_data(self.get_feed_function)
+        self.subscriptions_table.grant_read_data(self.calculate_feed_function)
 
         self.ratings_table.grant_read_data(self.is_rated_function)
 
-        self.ratings_table.grant_read_data(self.get_feed_function)
+        self.ratings_table.grant_read_data(self.calculate_feed_function)
 
-        self.albums_table.grant_read_write_data(self.get_feed_function)
+        self.albums_table.grant_read_write_data(self.calculate_feed_function)
 
         self.music_content_table.grant_read_data(self.add_to_history_function)
         self.artists_table.grant_read_data(self.add_to_history_function)
@@ -753,7 +756,7 @@ class UserLambdas(Construct):
         self.music_content_table.grant_read_write_data(self.update_music_content_function)
         self.music_content_table.grant_read_data(self.get_music_content_function)
 
-        self.music_content_table.grant_read_data(self.get_feed_function)
+        self.music_content_table.grant_read_data(self.calculate_feed_function)
 
 
         self.music_content_table.grant_read_write_data(self.delete_music_content_function)
@@ -766,7 +769,7 @@ class UserLambdas(Construct):
         self.music_bucket.grant_read_write(self.delete_music_content_function)
         self.music_bucket.grant_read_write(self.update_music_content_function)
 
-        self.music_bucket.grant_read_write(self.get_feed_function)
+        self.music_bucket.grant_read_write(self.calculate_feed_function)
 
         print("Permissions granted successfully")
     
@@ -793,6 +796,8 @@ class UserLambdas(Construct):
         self.transcriptions_table.grant_read_write_data(self.start_transcription_function)
         self.transcriptions_table.grant_read_write_data(self.monitor_transcription_function)
         self.transcriptions_table.grant_read_data(self.get_transcription_function)
+
+        self.feed_table.grant_read_write_data(self.calculate_feed_function)
         
         # Amazon Transcribe permissions
         transcribe_policy = iam.PolicyStatement(

@@ -41,7 +41,8 @@ class MusicAppStack(Stack):
             database.notifications_table,
             database.albums_table,
             database.transcriptions_table,
-            transcription.transcription_queue 
+            transcription.transcription_queue,
+            database.feed_table
         )
         
         api = ApiConstruct(
@@ -67,7 +68,7 @@ class MusicAppStack(Stack):
             user_lambdas.get_notifications_function,
             user_lambdas.is_rated_function,
             user_lambdas.is_subscribed_function,
-            user_lambdas.get_feed_function,
+            user_lambdas.calculate_feed_function,
             user_lambdas.discover_function, 
             user_lambdas.create_album_function, 
             user_lambdas.get_albums_function,     

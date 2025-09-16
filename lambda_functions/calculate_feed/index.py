@@ -35,15 +35,12 @@ def handler(event, context):
         
         feed_albums = get_feed_albums(subscriptions, ratings, history, albums, content)
         
-        result = {
-            'content': feed_albums,
-            'count': len(feed_albums)
-        }
-        
+        store_feed(username, feed_albums)
+
         return {
             'statusCode': 200,
             'headers': get_cors_headers(),
-            'body': json.dumps(result)
+            'body': json.dumps('OK')
         }
 
         
@@ -203,6 +200,45 @@ def get_feed_albums(subscriptions, ratings, history, albums, content):
     return sorted_albums
 
 
+def store_feed(username, feed):
+    """Update user's feed with given album list"""
+    try:
+        table = dynamodb.Table(os.environ['FEED_TABLE'])  # zameni sa svojom tabelom
+
+        # prvo proveravamo da li postoji korisnik
+        response = table.get_item(
+            Key={'username': username}
+        )
+
+        print(response)
+
+        if 'Item' not in response:
+            logger.warning(f"User not found: {username}")
+            raise ValueError(f"User {username} does not exist!")
+
+        feed = convert_floats_to_decimal(feed)
+
+        # updejtujemo feed kolonu
+        table.update_item(
+            Key={'username': username},
+            UpdateExpression="SET #feed = :feed",
+            ExpressionAttributeNames={
+                '#feed': 'feed'
+            },
+            ExpressionAttributeValues={
+                ':feed': feed
+            }
+        )
+
+        logger.info(f"Feed updated successfully for {username}: {feed}")
+        return {"statusCode": 200, "message": "Feed updated successfully"}
+
+    except ValueError as e:
+        return {"statusCode": 404, "error": str(e)}
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        raise
+
 def convert_decimals_to_float(obj):
     """Rekurzivno konvertuje sve Decimal objekte u float"""
     if isinstance(obj, decimal.Decimal):
@@ -211,6 +247,17 @@ def convert_decimals_to_float(obj):
         return {key: convert_decimals_to_float(value) for key, value in obj.items()}
     elif isinstance(obj, list):
         return [convert_decimals_to_float(item) for item in obj]
+    else:
+        return obj
+    
+def convert_floats_to_decimal(obj):
+    """Rekurzivno konvertuje sve Decimal objekte u float"""
+    if isinstance(obj, float):
+        return decimal.Decimal(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_floats_to_decimal(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_floats_to_decimal(item) for item in obj]
     else:
         return obj
 

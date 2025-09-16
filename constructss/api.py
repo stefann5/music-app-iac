@@ -33,7 +33,7 @@ class ApiConstruct(Construct):
         get_notifications_function: _lambda.Function,
         is_rated_function: _lambda.Function,
         is_subscribed_function: _lambda.Function,
-        get_feed_function: _lambda.Function,
+        calculate_feed_function: _lambda.Function,
         discover_function: _lambda.Function, 
         create_album_function: _lambda.Function,
         get_albums_function: _lambda.Function, 
@@ -62,7 +62,7 @@ class ApiConstruct(Construct):
         self.get_notifications_function = get_notifications_function
         self.is_rated_function = is_rated_function
         self.is_subscribed_function = is_subscribed_function
-        self.get_feed_function = get_feed_function
+        self.calculate_feed_function = calculate_feed_function
         self.discover_function = discover_function  # Enhanced discover with album support
         self.create_album_function = create_album_function  # NEW: Album creation
         self.get_albums_function = get_albums_function      # NEW: Album retrieval
@@ -337,10 +337,10 @@ class ApiConstruct(Construct):
             ]
         )
 
-        feed_resource = music_content_resource.add_resource('feed')
+        feed_resource = music_content_resource.add_resource('calculate_feed')
         feed_resource.add_method(
             'GET',
-            apigateway.LambdaIntegration(self.get_feed_function),
+            apigateway.LambdaIntegration(self.calculate_feed_function),
             authorizer=authorizer,
             method_responses=[
                 apigateway.MethodResponse(status_code='200'),

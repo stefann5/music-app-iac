@@ -36,6 +36,9 @@ class DatabaseConstruct(Construct):
         
         print(f"Creating Transcriptions table...")
         self.transcriptions_table = self._create_transcriptions_table()
+
+        print(f"Creating Feed table...")
+        self.feed_table = self._create_feed_table()
         
     
     def _create_users_table(self) -> dynamodb.Table:
@@ -425,6 +428,25 @@ class DatabaseConstruct(Construct):
         print("Notifications table created with album notification support")
         return table
     
+    def _create_feed_table(self) -> dynamodb.Table:
+        """Feed table with album feed support"""
+
+        table = dynamodb.Table(
+            self,
+            "FeedTable",
+            table_name=f"{self.config.app_name}-Feed",
+            partition_key=dynamodb.Attribute(
+                name="username",
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY
+        )
+
+        print("Feed table created with album Feed support")
+        return table
+    
+
     def _create_transcriptions_table(self) -> dynamodb.Table:
         """Transcriptions table for song lyrics/text with contentId as primary key"""
         
