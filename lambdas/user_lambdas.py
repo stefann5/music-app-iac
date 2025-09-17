@@ -147,6 +147,7 @@ class UserLambdas(Construct):
                 'USER_POOL_ID': self.user_pool.user_pool_id,
                 'USER_POOL_CLIENT_ID': self.user_pool_client.user_pool_client_id,
                 'USERS_TABLE': self.users_table.table_name,
+                'FEED_TABLE': self.feed_table.table_name,
                 'PASSWORD_MIN_LENGTH': str(self.config.password_min_length),
                 'APP_NAME': self.config.app_name
             }
@@ -244,6 +245,7 @@ class UserLambdas(Construct):
                 'APP_NAME': self.config.app_name
             }
         )
+    
     
     def _create_get_notifications_function(self) -> _lambda.Function:
         """Create Lambda function for getting all notifications"""
@@ -406,7 +408,7 @@ class UserLambdas(Construct):
     def _create_notify_subscribers_function(self) -> _lambda.Function:
         """Create Lambda function for creating subscription"""
         
-        return _lambda.Function(
+        function = _lambda.Function(
             self,
             "NotifySubscribersFunction",
             function_name=f"{self.config.app_name}-NotifySubscribers", 
@@ -418,10 +420,26 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'NOTIFICATIONS_TABLE': self.notifications_table.table_name,
+                'USERS_TABLE': self.users_table.table_name,  
+                'FROM_EMAIL': 'rsalapura154@gmail.com',   
                 'APP_NAME': self.config.app_name
-            }
+        }
+        )
+    
+        # Dodaj SES permissions
+        function.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'ses:SendEmail',
+                    'ses:SendRawEmail'
+                ],
+                resources=['*']
+            )
         )
 
+        return function
+    
     def _create_delete_subscription_function(self) -> _lambda.Function:
         """Create Lambda function for deleting subscription"""
         
@@ -789,6 +807,8 @@ class UserLambdas(Construct):
         self.notifications_table.grant_read_write_data(self.notify_subscribers_function)
         self.notifications_table.grant_read_data(self.get_notifications_function)
         
+        self.users_table.grant_read_write_data(self.notify_subscribers_function)
+
         # S3 permissions
         self.music_bucket.grant_read_write(self.create_music_content_function)
         self.music_bucket.grant_read(self.get_music_content_function)
@@ -825,6 +845,7 @@ class UserLambdas(Construct):
 
         self.feed_table.grant_read_write_data(self.calculate_feed_function)
         self.feed_table.grant_read_write_data(self.get_feed_function)
+        self.feed_table.grant_read_write_data(self.registration_function)
 
         # Amazon Transcribe permissions
         transcribe_policy = iam.PolicyStatement(

@@ -53,6 +53,8 @@ def handler(event, context):
         
         logger.info(f"User registered successfully: {user_id}")
         
+        insert_empty_feed(body['username'])
+
         return create_success_response(201, {
             'message': 'User registered successfully',
             'userId': user_id,
@@ -270,6 +272,27 @@ def store_user_profile(user_id, cognito_user_id, user_data):
         
     except Exception as e:
         logger.error(f"Error storing user profile: {str(e)}")
+        raise
+
+def insert_empty_feed(username):
+    """Insert new user feed with empty list"""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        feed_table = dynamodb.Table(os.environ['FEED_TABLE'])
+        
+        item = {
+            'username': username,           # PK
+            'feed': [],                     # Empty list
+        }
+        
+        # Insert item
+        feed_table.put_item(Item=item)
+        
+        print(f"Empty feed created for user: {username}")
+        return item
+        
+    except Exception as e:
+        print(f"Error creating feed for {username}: {str(e)}")
         raise
 
 def create_success_response(status_code, data):

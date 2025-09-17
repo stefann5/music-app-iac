@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 from xml.dom.minidom import Attr
 import boto3
@@ -50,6 +51,14 @@ def handler(event, context):
         # 2. Sačuvaj sve u bazi
         store_notifications_batch(notifications)
 
+        if subscriptions:
+            notification = {
+                'content': subscriptions[0]['targetName'],
+                'message': 'New content has been published by your subscription: ' + subscriptions[0]['targetName']
+            }
+            send_bulk_emails(subscriptions, notification)
+
+
         return create_success_response(201, {
             "message": f"{len(notifications)} notifications created successfully",
             "notifications": notifications
@@ -58,6 +67,112 @@ def handler(event, context):
     except Exception as e:
         logger.error(f"Create notifications error: {str(e)}")
         return create_error_response(500, "Internal server error")
+
+def send_bulk_emails(subscribers_list, notification):
+    """Send email to all subscribers in the list"""
+    
+    print(f"Sending emails to {len(subscribers_list)} subscribers")
+    
+    # Parallel processing za brže slanje
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # Submit email jobs
+        email_jobs = []
+        for subscriber in subscribers_list:
+            user_email = get_user_email(subscriber['username'])  # ili subscriber.get('email')
+            if user_email:
+                job = executor.submit(send_single_email, user_email, notification)
+                email_jobs.append(job)
+        
+        # Wait for completion and log results
+        success_count = 0
+        for job in as_completed(email_jobs):
+            try:
+                job.result()  # Get result (will raise exception if failed)
+                success_count += 1
+            except Exception as e:
+                print(f"Email sending failed: {str(e)}")
+    
+    print(f"Successfully sent {success_count} out of {len(email_jobs)} emails")
+
+
+def send_single_email(to_email, notification):
+    """Send email to single recipient"""
+    
+    ses = boto3.client('ses')
+    
+    subject = f"🎵 {notification['content']}"
+    
+    html_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; color: white; text-align: center;">
+            <h1 style="margin: 0;">🎵 MusicApp</h1>
+        </div>
+        
+        <div style="padding: 30px; background: #f9f9f9;">
+            <h2 style="color: #333;">{notification['content']}</h2>
+            <p style="font-size: 16px; line-height: 1.6; color: #666;">
+                {notification['message']}
+            </p>
+        </div>
+        
+        <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
+            <p>You received this because you follow this artist.</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    text_body = f"""
+    {notification['content']}
+    
+    {notification['message']}
+    """
+    
+    try:
+        response = ses.send_email(
+            Source=os.environ['FROM_EMAIL'],
+            Destination={'ToAddresses': [to_email]},
+            Message={
+                'Subject': {'Data': subject},
+                'Body': {
+                    'Html': {'Data': html_body},
+                    'Text': {'Data': text_body}
+                }
+            }
+        )
+        
+        print(f"Email sent to {to_email}: {response['MessageId']}")
+        return True
+        
+    except Exception as e:
+        print(f"Error sending email to {to_email}: {str(e)}")
+        raise
+
+def get_user_email(username):
+    """Get user email by username using GSI - FAST!"""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        users_table = dynamodb.Table(os.environ['USERS_TABLE'])
+        
+        # Query username GSI (mnogo brže od scan!)
+        response = users_table.query(
+            IndexName='username-index',
+            KeyConditionExpression=Key('username').eq(username),
+            ProjectionExpression='email'
+        )
+        
+        items = response.get('Items', [])
+        if items:
+            return items[0].get('email')
+        else:
+            print(f"No user found with username: {username}")
+            return None
+        
+    except Exception as e:
+        print(f"Error getting user email for username {username}: {str(e)}")
+        return None
+
 
 def create_notification_record(notification_id, input_data, event):
     """Create Notification record structure"""
