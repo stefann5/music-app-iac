@@ -434,7 +434,8 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
     
@@ -835,6 +836,7 @@ class UserLambdas(Construct):
 
         self.calculate_feed_function.grant_invoke(self.create_rating_function)
         self.calculate_feed_function.grant_invoke(self.create_subscription_function)
+        self.calculate_feed_function.grant_invoke(self.delete_subscription_function)
         self.calculate_feed_function.grant_invoke(self.add_to_history_function)
 
         self.start_transcription_function.grant_invoke(self.create_music_content_function)

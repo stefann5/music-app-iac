@@ -33,6 +33,14 @@ def handler(event, context):
         
         logger.info(f"Subscription deleted successfully: {subscription_id}")
         
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        username = authorizer.get('username', {})
+
+        trigger_feed_calculation(
+            username=username,
+        )
+
         return create_success_response(200, {
             'message': 'Subscription deleted successfully',
             'subscriptionId': subscription_id
@@ -58,6 +66,26 @@ def delete_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error deleting subscription: {str(e)}")
         raise
+
+def trigger_feed_calculation(username):
+    """Trigger feed calculation after subscription update"""
+    
+    lambda_client = boto3.client('lambda')
+    
+    payload = {
+        'username': username,
+        'action': 'subscription_deleted',
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Invoke calculate feed function asynchronously
+    lambda_client.invoke(
+        FunctionName=os.environ['CALCULATE_FEED_FUNCTION'],
+        InvocationType='Event',  # Async invocation
+        Payload=json.dumps(payload)
+    )
+    
+    print(f"Feed calculation triggered for user: {username}")
 
 def create_success_response(status_code, data):
     """Create standardized success response"""
