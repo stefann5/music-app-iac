@@ -36,7 +36,11 @@ def handler(event, context):
         # Store in DynamoDB
         add_to_history(contentId, username)
         
-        
+        trigger_feed_calculation(
+            username=username,
+        )
+
+
         return create_success_response(201, {
             'message': 'History edited successfully'
         })
@@ -147,6 +151,26 @@ def create_success_response(status_code, data):
         'headers': get_cors_headers(),
         'body': json.dumps(data, default=str)
     }
+
+def trigger_feed_calculation(username):
+    """Trigger feed calculation after history update"""
+    
+    lambda_client = boto3.client('lambda')
+    
+    payload = {
+        'username': username,
+        'action': 'history_updated',
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Invoke calculate feed function asynchronously
+    lambda_client.invoke(
+        FunctionName=os.environ['CALCULATE_FEED_FUNCTION'],
+        InvocationType='Event',  # Async invocation
+        Payload=json.dumps(payload)
+    )
+    
+    print(f"Feed calculation triggered for user: {username}")
 
 def create_error_response(status_code, message, details=None):
     """Create standardized error response"""

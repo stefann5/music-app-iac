@@ -20,8 +20,11 @@ def handler(event, context):
         authorizer = request_context.get('authorizer', {})
         username = authorizer.get('username', {})
 
+        if username == {}:
+             username = event.get('username', {})
+        
+
         table_name = os.environ['MUSIC_CONTENT_TABLE']
-        bucket_name = os.environ['MUSIC_CONTENT_BUCKET']
         table = dynamodb.Table(table_name)
 
         subscriptions = get_subscriptions(username)

@@ -37,7 +37,12 @@ def handler(event, context):
         store_rating(rating_data)
         
         logger.info(f"Rating created successfully: {rating_id}")
-        
+
+        trigger_feed_calculation(
+            username=rating_data['username'],
+            rating=rating_data
+        )
+
         return create_success_response(201, {
             'message': 'Rating created successfully',
             'artist': {
@@ -143,6 +148,27 @@ def create_error_response(status_code, message, details=None):
         'headers': get_cors_headers(),
         'body': json.dumps(error_data)
     }
+
+def trigger_feed_calculation(username, rating=None):
+    """Trigger feed calculation after rating update"""
+    
+    lambda_client = boto3.client('lambda')
+    
+    payload = {
+        'username': username,
+        'action': 'rating_updated',
+        'rating': rating,
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Invoke calculate feed function asynchronously
+    lambda_client.invoke(
+        FunctionName=os.environ['CALCULATE_FEED_FUNCTION'],
+        InvocationType='Event',  # Async invocation
+        Payload=json.dumps(payload)
+    )
+    
+    print(f"Feed calculation triggered for user: {username}")
 
 def get_cors_headers():
     """Get CORS headers for API responses"""

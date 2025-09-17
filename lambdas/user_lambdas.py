@@ -27,7 +27,8 @@ class UserLambdas(Construct):
         albums_table,
         transcriptions_table,  
         transcription_queue,
-        feed_table
+        feed_table,
+        feed_queue
     ):
         super().__init__(scope, id)
         
@@ -45,6 +46,7 @@ class UserLambdas(Construct):
         self.transcriptions_table = transcriptions_table
         self.transcription_queue = transcription_queue
         self.feed_table = feed_table
+        self.feed_queue = feed_queue
         
         print(f"Creating registration Lambda function...")
         self.registration_function = self._create_registration_function()
@@ -353,7 +355,8 @@ class UserLambdas(Construct):
                 'USERS_TABLE': self.users_table.table_name,
                 'ARTISTS_TABLE': self.artists_table.table_name,
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
 
@@ -372,7 +375,8 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'RATINGS_TABLE': self.ratings_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
     
@@ -391,7 +395,8 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
 
@@ -518,7 +523,8 @@ class UserLambdas(Construct):
                 'USERS_TABLE': self.users_table.table_name,
                 'RATINGS_TABLE': self.ratings_table.table_name,
                 'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
 
@@ -821,7 +827,16 @@ class UserLambdas(Construct):
         # SQS permissions
         self.transcription_queue.grant_send_messages(self.start_transcription_function)
         self.transcription_queue.grant_send_messages(self.monitor_transcription_function)
-        
+
+        self.feed_queue.grant_send_messages(self.calculate_feed_function)
+        self.feed_queue.grant_send_messages(self.create_rating_function)
+        self.feed_queue.grant_send_messages(self.create_subscription_function)
+        self.feed_queue.grant_send_messages(self.add_to_history_function)
+
+        self.calculate_feed_function.grant_invoke(self.create_rating_function)
+        self.calculate_feed_function.grant_invoke(self.create_subscription_function)
+        self.calculate_feed_function.grant_invoke(self.add_to_history_function)
+
         self.start_transcription_function.grant_invoke(self.create_music_content_function)
         # Lambda invoke permissions for create_music_content to trigger transcription
         self.start_transcription_function.grant_invoke(
