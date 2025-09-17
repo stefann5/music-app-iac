@@ -60,45 +60,133 @@ def handler(event, context):
         logger.error(f"Get ratings error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def get_ratings(limit, last_key=None, songId=None, username=None):
+# def get_ratings(limit, last_key=None, songId=None, username=None):
+#     """Get ratings from DynamoDB with optional pagination and filtering"""
+#     try:
+#         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
+        
+#             # Scan parameters
+#         scan_params = {
+#             'Limit': limit
+#         }
+
+#         # Add username filter if specified
+#         if songId:
+#             scan_params['FilterExpression'] = 'contains(songId, :songId)'
+#             scan_params['ExpressionAttributeValues'] = {':songId': songId}
+#         if username:
+#             scan_params['FilterExpression'] = 'contains(username, :username)'
+#             scan_params['ExpressionAttributeValues'] = {':username': username}
+        
+#         # Add pagination if last key is provided
+#         if last_key:
+#             try:
+#                 # Decode the last key from base64 if needed
+#                 import base64
+#                 decoded_key = json.loads(base64.b64decode(last_key).decode('utf-8'))
+#                 scan_params['ExclusiveStartKey'] = decoded_key
+#             except Exception as e:
+#                 logger.warning(f"Invalid lastKey format: {str(e)}")
+        
+#         # Perform scan
+#         response = table.scan(**scan_params)
+        
+#         # Transform artists data for frontend
+#         ratings = []
+#         for item in response.get('Items', []):
+#             rating = transform_rating_for_response(item)
+#             ratings.append(rating)
+        
+#         # Sort by name for consistent ordering
+#         ratings.sort(key=lambda x: x['username'].lower())
+        
+#         result = {
+#             'ratings': ratings,
+#             'hasMore': 'LastEvaluatedKey' in response
+#         }
+        
+#         # Include last key for pagination
+#         if 'LastEvaluatedKey' in response:
+#             import base64
+#             last_key_encoded = base64.b64encode(
+#                 json.dumps(response['LastEvaluatedKey'], default=str).encode('utf-8')
+#             ).decode('utf-8')
+#             result['lastKey'] = last_key_encoded
+        
+#         return result
+        
+#     except Exception as e:
+#         logger.error(f"Error getting ratings: {str(e)}")
+#         raise
+
+def get_ratings(limit=50, last_key=None, song_id=None, username=None):
     """Get ratings from DynamoDB with optional pagination and filtering"""
     try:
         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
         
-            # Scan parameters
-        scan_params = {
-            'Limit': limit
-        }
-
-        # Add username filter if specified
-        if songId:
-            scan_params['FilterExpression'] = 'contains(songId, :songId)'
-            scan_params['ExpressionAttributeValues'] = {':songId': songId}
+        # Option 1: Get ratings by USERNAME (use username-index GSI)
         if username:
-            scan_params['FilterExpression'] = 'contains(username, :username)'
-            scan_params['ExpressionAttributeValues'] = {':username': username}
+            query_params = {
+                'IndexName': 'username-timestamp-index',
+                'KeyConditionExpression': Key('username').eq(username),
+                'ScanIndexForward': False,  # Newest first
+                'Limit': limit
+            }
+            
+            if last_key:
+                try:
+                    import base64
+                    decoded_key = json.loads(base64.b64decode(last_key).decode('utf-8'))
+                    query_params['ExclusiveStartKey'] = decoded_key
+                except Exception as e:
+                    logger.warning(f"Invalid lastKey format: {str(e)}")
+            
+            response = table.query(**query_params)
+            
+        # Option 2: Get ratings by SONG_ID (use songId-index GSI)
+        elif song_id:
+            query_params = {
+                'IndexName': 'songId-timestamp-index',
+                'KeyConditionExpression': Key('songId').eq(song_id),
+                'ScanIndexForward': False,  # Newest first
+                'Limit': limit
+            }
+            
+            if last_key:
+                try:
+                    import base64
+                    decoded_key = json.loads(base64.b64decode(last_key).decode('utf-8'))
+                    query_params['ExclusiveStartKey'] = decoded_key
+                except Exception as e:
+                    logger.warning(f"Invalid lastKey format: {str(e)}")
+            
+            response = table.query(**query_params)
+            
+        # Option 3: Get ALL ratings (fallback to scan - not recommended for large datasets)
+        else:
+            scan_params = {
+                'Limit': limit
+            }
+            
+            if last_key:
+                try:
+                    import base64
+                    decoded_key = json.loads(base64.b64decode(last_key).decode('utf-8'))
+                    scan_params['ExclusiveStartKey'] = decoded_key
+                except Exception as e:
+                    logger.warning(f"Invalid lastKey format: {str(e)}")
+            
+            response = table.scan(**scan_params)
         
-        # Add pagination if last key is provided
-        if last_key:
-            try:
-                # Decode the last key from base64 if needed
-                import base64
-                decoded_key = json.loads(base64.b64decode(last_key).decode('utf-8'))
-                scan_params['ExclusiveStartKey'] = decoded_key
-            except Exception as e:
-                logger.warning(f"Invalid lastKey format: {str(e)}")
-        
-        # Perform scan
-        response = table.scan(**scan_params)
-        
-        # Transform artists data for frontend
+        # Transform ratings data for frontend
         ratings = []
         for item in response.get('Items', []):
             rating = transform_rating_for_response(item)
             ratings.append(rating)
         
-        # Sort by name for consistent ordering
-        ratings.sort(key=lambda x: x['username'].lower())
+        # Sort by timestamp for consistent ordering (newest first)
+        if not username and not song_id:  # Only sort if not already sorted by GSI
+            ratings.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
         
         result = {
             'ratings': ratings,

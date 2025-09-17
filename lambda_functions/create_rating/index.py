@@ -33,13 +33,19 @@ def handler(event, context):
         if int(rating_data['stars']) < 1 or int(rating_data['stars']) > 5:
             create_error_response(400, 'Incorrect input for rating (1-5)!')
 
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        username = authorizer.get('username', {})
+
         # Store in DynamoDB
         store_rating(rating_data)
         
         logger.info(f"Rating created successfully: {rating_id}")
 
+        
+
         trigger_feed_calculation(
-            username=rating_data['username'],
+            username=username,
             rating=rating_data
         )
 
@@ -47,8 +53,6 @@ def handler(event, context):
             'message': 'Rating created successfully',
             'artist': {
                 'ratingId': rating_id,
-                'songId': rating_data['songId'],
-                'username': rating_data['username'],
                 'stars': rating_data['stars'],
                 'timestamp': rating_data['timestamp']
             }
@@ -67,36 +71,44 @@ def create_rating_record(rating_id, input_data, event):
     username = authorizer.get('username', {})
     
     return {
-        'ratingId': rating_id,
-        'songId': input_data['songId'],
+        'ratingId': input_data['songId'] + '#' + username,
         'username': username,
+        'songId': input_data['songId'],
         'stars': input_data['stars'],
         'timestamp': datetime.now().isoformat()
     }
 
 
+def has_rated(song_id, username):
+    """
+    Check if a given user has already rated a given song.
+    Returns True if exists, False otherwise.
+    Uses direct GetItem instead of expensive Scan operation.
+    """
+    try:
+        table = dynamodb.Table(os.environ['RATINGS_TABLE'])
+        
+        # Direct lookup using composite partition key
+        rating_id = f"{song_id}#{username}"
+        
+        response = table.get_item(
+            Key={'ratingId': rating_id}
+        )
+        
+        # Check if item exists
+        return 'Item' in response
+        
+    except Exception as e:
+        logger.error(f"Error checking rating existence: {str(e)}")
+        raise
+
 def store_rating(rating_data):
     """Store rating with duplicate check using scan (for small tables)"""
     try:
         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
-        
-        username = rating_data['username']
-        songId = rating_data['songId']
-        
-        response = table.scan(
-            FilterExpression='#username = :username AND #songId = :songId',
-            ExpressionAttributeNames={
-                '#username': 'username',
-                '#songId': 'songId'
-            },
-            ExpressionAttributeValues={
-                ':username': username,
-                ':songId': songId
-            }
-)
-        if response['Items']:
-            existing_rating = response['Items'][0]
-            logger.warning(f"Duplicate rating found: {existing_rating['songId']}")
+
+        if has_rated(rating_data['songId'], rating_data['username']):
+            logger.warning(f"Duplicate rating found")
             raise ValueError('You have already rated this item!')
         
         # Store rating ako nema duplikata

@@ -43,32 +43,56 @@ def handler(event, context):
         logger.error(f"Get ratings error: {str(e)}")
         return create_error_response(500, "Internal server error")
 
-def has_rated(songId, username):
+def has_rated(song_id, username):
     """
     Check if a given user has already rated a given song.
     Returns True if exists, False otherwise.
+    Uses direct GetItem instead of expensive Scan operation.
     """
     try:
         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
-
-        # Scan with FilterExpression for this user + song
-        response = table.scan(
-            FilterExpression='#username = :username AND #songId = :songId',
-            ExpressionAttributeNames={
-                '#username': 'username',
-                '#songId': 'songId'
-            },
-            ExpressionAttributeValues={
-                ':username': username,
-                ':songId': songId
-            }
+        
+        # Direct lookup using composite partition key
+        rating_id = f"{song_id}#{username}"
+        
+        response = table.get_item(
+            Key={'ratingId': rating_id}
         )
-        items = response['Items']
-        return len(items) > 0
-
+        
+        # Check if item exists
+        return 'Item' in response
+        
     except Exception as e:
         logger.error(f"Error checking rating existence: {str(e)}")
         raise
+
+
+# def has_rated(songId, username):
+#     """
+#     Check if a given user has already rated a given song.
+#     Returns True if exists, False otherwise.
+#     """
+#     try:
+#         table = dynamodb.Table(os.environ['RATINGS_TABLE'])
+
+#         # Scan with FilterExpression for this user + song
+#         response = table.scan(
+#             FilterExpression='#username = :username AND #songId = :songId',
+#             ExpressionAttributeNames={
+#                 '#username': 'username',
+#                 '#songId': 'songId'
+#             },
+#             ExpressionAttributeValues={
+#                 ':username': username,
+#                 ':songId': songId
+#             }
+#         )
+#         items = response['Items']
+#         return len(items) > 0
+
+#     except Exception as e:
+#         logger.error(f"Error checking rating existence: {str(e)}")
+#         raise
 
 def transform_rating_for_response(item):
     """Transform DynamoDB item to frontend-friendly format"""

@@ -196,64 +196,99 @@ class DatabaseConstruct(Construct):
         return table
     
     def _create_ratings_table(self) -> dynamodb.Table:
-        """Enhanced ratings table with album support"""
-    
+
         table = dynamodb.Table(
             self,
             "RatingsTable", 
             table_name=f"{self.config.app_name}-Ratings",
             partition_key=dynamodb.Attribute(
-                name='ratingId',
+                name='ratingId',  # Format: "songId#username" 
                 type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY
         )
         
-        # Existing indexes
-        table.add_global_secondary_index(
-            index_name='userId-index',
-            partition_key=dynamodb.Attribute(
-                name='userId',
-                type=dynamodb.AttributeType.STRING
-            ),
-            projection_type=dynamodb.ProjectionType.ALL
-        )
         
         table.add_global_secondary_index(
-            index_name='songId-index',
+            index_name='username-timestamp-index',
             partition_key=dynamodb.Attribute(
-                name='songId',
-                type=dynamodb.AttributeType.STRING
-            ),
-            projection_type=dynamodb.ProjectionType.ALL
-        )
-        
-        table.add_global_secondary_index(
-            index_name='userId-songId-index',
-            partition_key=dynamodb.Attribute(
-                name='userId',
+                name='username',
                 type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
+                name='timestamp',
+                type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL
+        )
+        
+        
+        table.add_global_secondary_index(
+            index_name='songId-timestamp-index',
+            partition_key=dynamodb.Attribute(
                 name='songId',
                 type=dynamodb.AttributeType.STRING
             ),
-            projection_type=dynamodb.ProjectionType.ALL
-        )
-        
-        # NEW: Album-based ratings
-        table.add_global_secondary_index(
-            index_name='albumId-index',
-            partition_key=dynamodb.Attribute(
-                name='albumId',
+            sort_key=dynamodb.Attribute(
+                name='timestamp',
                 type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.ALL
         )
         
-        print("Ratings table created with userId, songId, albumId indexes")
+        print("Simplified Ratings table created with composite key structure")
         return table
+
+    # def _create_ratings_table(self) -> dynamodb.Table:
+    #     """Enhanced ratings table with album support"""
+    
+    #     table = dynamodb.Table(
+    #         self,
+    #         "RatingsTable", 
+    #         table_name=f"{self.config.app_name}-Ratings",
+    #         partition_key=dynamodb.Attribute(
+    #             name='ratingId',
+    #             type=dynamodb.AttributeType.STRING
+    #         ),
+    #         billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+    #         removal_policy=RemovalPolicy.DESTROY
+    #     )
+        
+    #     # Existing indexes
+    #     table.add_global_secondary_index(
+    #         index_name='userId-index',
+    #         partition_key=dynamodb.Attribute(
+    #             name='userId',
+    #             type=dynamodb.AttributeType.STRING
+    #         ),
+    #         projection_type=dynamodb.ProjectionType.ALL
+    #     )
+        
+    #     table.add_global_secondary_index(
+    #         index_name='songId-index',
+    #         partition_key=dynamodb.Attribute(
+    #             name='songId',
+    #             type=dynamodb.AttributeType.STRING
+    #         ),
+    #         projection_type=dynamodb.ProjectionType.ALL
+    #     )
+        
+    #     table.add_global_secondary_index(
+    #         index_name='userId-songId-index',
+    #         partition_key=dynamodb.Attribute(
+    #             name='userId',
+    #             type=dynamodb.AttributeType.STRING
+    #         ),
+    #         sort_key=dynamodb.Attribute(
+    #             name='songId',
+    #             type=dynamodb.AttributeType.STRING
+    #         ),
+    #         projection_type=dynamodb.ProjectionType.ALL
+    #     )
+        
+    #     print("Ratings table created with userId, songId, albumId indexes")
+    #     return table
     
     def _create_subscriptions_table(self) -> dynamodb.Table:
         """Enhanced subscriptions table with album subscription support"""
