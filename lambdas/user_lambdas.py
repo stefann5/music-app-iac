@@ -111,6 +111,9 @@ class UserLambdas(Construct):
         print(f"Creating get albums Lambda function...")
         self.get_albums_function = self._create_get_albums_function()
 
+        print(f"Creating get albums Lambda function...")
+        self.get_feed_function = self._create_get_feed_function()
+
         print(f"Creating discover Lambda function...")
         self.discover_function = self._create_discover_function()
         
@@ -484,6 +487,22 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_get_feed_function(self) -> _lambda.Function:
+        return _lambda.Function(
+            self,
+            "GetFeedFunction",
+            function_name=f"{self.config.app_name}-GetFeed",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_feed"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'FEED_TABLE': self.feed_table.table_name,
+            }
+        )
+
     def _create_get_music_content_function(self) -> _lambda.Function:
         return _lambda.Function(
             self,
@@ -805,7 +824,8 @@ class UserLambdas(Construct):
         self.transcriptions_table.grant_read_data(self.get_transcription_function)
 
         self.feed_table.grant_read_write_data(self.calculate_feed_function)
-        
+        self.feed_table.grant_read_write_data(self.get_feed_function)
+
         # Amazon Transcribe permissions
         transcribe_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,

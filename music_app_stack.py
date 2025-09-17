@@ -77,7 +77,8 @@ class MusicAppStack(Stack):
             user_lambdas.create_album_function, 
             user_lambdas.get_albums_function,     
             user_lambdas.add_to_history_function,
-            user_lambdas.get_transcription_function
+            user_lambdas.get_transcription_function,
+            user_lambdas.get_feed_function
         )
         
         # Step 5: Create outputs

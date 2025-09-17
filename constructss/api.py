@@ -38,7 +38,8 @@ class ApiConstruct(Construct):
         create_album_function: _lambda.Function,
         get_albums_function: _lambda.Function, 
         add_to_history_function: _lambda.Function,
-        get_transcription_function: _lambda.Function
+        get_transcription_function: _lambda.Function,
+        get_feed_function: _lambda.Function
     ):
         super().__init__(scope, id)
         
@@ -68,6 +69,8 @@ class ApiConstruct(Construct):
         self.get_albums_function = get_albums_function      # NEW: Album retrieval
         self.add_to_history_function = add_to_history_function
         self.get_transcription_function = get_transcription_function
+        self.get_feed_function = get_feed_function
+        
 
         print(f"Creating API Gateway with discover endpoints...")
         
@@ -341,6 +344,18 @@ class ApiConstruct(Construct):
         feed_resource.add_method(
             'GET',
             apigateway.LambdaIntegration(self.calculate_feed_function),
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(status_code='200'),
+                apigateway.MethodResponse(status_code='401'),
+                apigateway.MethodResponse(status_code='500')
+            ]
+        )
+
+        get_feed_resource = music_content_resource.add_resource('feed')
+        get_feed_resource.add_method(
+            'GET',
+            apigateway.LambdaIntegration(self.get_feed_function),
             authorizer=authorizer,
             method_responses=[
                 apigateway.MethodResponse(status_code='200'),
