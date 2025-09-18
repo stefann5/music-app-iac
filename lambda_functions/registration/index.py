@@ -53,6 +53,12 @@ def handler(event, context):
         
         logger.info(f"User registered successfully: {user_id}")
         
+        insert_empty_feed(body['username'])
+
+        trigger_feed_calculation(
+            username=body['username']
+        )
+
         return create_success_response(201, {
             'message': 'User registered successfully',
             'userId': user_id,
@@ -67,6 +73,26 @@ def handler(event, context):
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         return create_error_response(500, "Internal server error")
+
+def trigger_feed_calculation(username):
+    """Trigger feed calculation after subscription update"""
+    
+    lambda_client = boto3.client('lambda')
+    
+    payload = {
+        'username': username,
+        'action': 'registration',
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Invoke calculate feed function asynchronously
+    lambda_client.invoke(
+        FunctionName=os.environ['CALCULATE_FEED_FUNCTION'],
+        InvocationType='Event',  # Async invocation
+        Payload=json.dumps(payload)
+    )
+    
+    print(f"Feed calculation triggered for user: {username}")
 
 def validate_registration_input(input_data):
     """
@@ -270,6 +296,27 @@ def store_user_profile(user_id, cognito_user_id, user_data):
         
     except Exception as e:
         logger.error(f"Error storing user profile: {str(e)}")
+        raise
+
+def insert_empty_feed(username):
+    """Insert new user feed with empty list"""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        feed_table = dynamodb.Table(os.environ['FEED_TABLE'])
+        
+        item = {
+            'username': username,           # PK
+            'feed': [],                     # Empty list
+        }
+        
+        # Insert item
+        feed_table.put_item(Item=item)
+        
+        print(f"Empty feed created for user: {username}")
+        return item
+        
+    except Exception as e:
+        print(f"Error creating feed for {username}: {str(e)}")
         raise
 
 def create_success_response(status_code, data):

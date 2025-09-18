@@ -26,7 +26,9 @@ class UserLambdas(Construct):
         notifications_table,
         albums_table,
         transcriptions_table,  
-        transcription_queue
+        transcription_queue,
+        feed_table,
+        feed_queue
     ):
         super().__init__(scope, id)
         
@@ -43,6 +45,8 @@ class UserLambdas(Construct):
         self.albums_table = albums_table 
         self.transcriptions_table = transcriptions_table
         self.transcription_queue = transcription_queue
+        self.feed_table = feed_table
+        self.feed_queue = feed_queue
         
         print(f"Creating registration Lambda function...")
         self.registration_function = self._create_registration_function()
@@ -84,7 +88,7 @@ class UserLambdas(Construct):
         self.get_music_content_function = self._create_get_music_content_function()
 
         print(f"Creating get feed Lambda function...")
-        self.get_feed_function = self._create_get_feed_function()
+        self.calculate_feed_function = self._create_calculate_feed_function()
 
         print(f"Creating delete music content Lambda function...")
         self.delete_music_content_function = self._create_delete_music_content_function()
@@ -106,6 +110,9 @@ class UserLambdas(Construct):
 
         print(f"Creating get albums Lambda function...")
         self.get_albums_function = self._create_get_albums_function()
+
+        print(f"Creating get albums Lambda function...")
+        self.get_feed_function = self._create_get_feed_function()
 
         print(f"Creating discover Lambda function...")
         self.discover_function = self._create_discover_function()
@@ -140,8 +147,10 @@ class UserLambdas(Construct):
                 'USER_POOL_ID': self.user_pool.user_pool_id,
                 'USER_POOL_CLIENT_ID': self.user_pool_client.user_pool_client_id,
                 'USERS_TABLE': self.users_table.table_name,
+                'FEED_TABLE': self.feed_table.table_name,
                 'PASSWORD_MIN_LENGTH': str(self.config.password_min_length),
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
     def _create_login_function(self) -> _lambda.Function:
@@ -237,6 +246,7 @@ class UserLambdas(Construct):
                 'APP_NAME': self.config.app_name
             }
         )
+    
     
     def _create_get_notifications_function(self) -> _lambda.Function:
         """Create Lambda function for getting all notifications"""
@@ -351,7 +361,8 @@ class UserLambdas(Construct):
                 'USERS_TABLE': self.users_table.table_name,
                 'ARTISTS_TABLE': self.artists_table.table_name,
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
 
@@ -370,7 +381,8 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'RATINGS_TABLE': self.ratings_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
     
@@ -389,14 +401,15 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
 
     def _create_notify_subscribers_function(self) -> _lambda.Function:
         """Create Lambda function for creating subscription"""
         
-        return _lambda.Function(
+        function = _lambda.Function(
             self,
             "NotifySubscribersFunction",
             function_name=f"{self.config.app_name}-NotifySubscribers", 
@@ -408,10 +421,26 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'NOTIFICATIONS_TABLE': self.notifications_table.table_name,
+                'USERS_TABLE': self.users_table.table_name,  
+                'FROM_EMAIL': 'rsalapura154@gmail.com',   
                 'APP_NAME': self.config.app_name
-            }
+        }
+        )
+    
+        # Dodaj SES permissions
+        function.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'ses:SendEmail',
+                    'ses:SendRawEmail'
+                ],
+                resources=['*']
+            )
         )
 
+        return function
+    
     def _create_delete_subscription_function(self) -> _lambda.Function:
         """Create Lambda function for deleting subscription"""
         
@@ -427,7 +456,8 @@ class UserLambdas(Construct):
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
     
@@ -476,6 +506,22 @@ class UserLambdas(Construct):
             }
         )
 
+    def _create_get_feed_function(self) -> _lambda.Function:
+        return _lambda.Function(
+            self,
+            "GetFeedFunction",
+            function_name=f"{self.config.app_name}-GetFeed",
+            runtime=_lambda.Runtime.PYTHON_3_9,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("lambda_functions/get_feed"),
+            timeout=Duration.seconds(self.config.lambda_timeout),
+            memory_size=self.config.lambda_memory,
+            tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
+            environment={
+                'FEED_TABLE': self.feed_table.table_name,
+            }
+        )
+
     def _create_get_music_content_function(self) -> _lambda.Function:
         return _lambda.Function(
             self,
@@ -497,25 +543,27 @@ class UserLambdas(Construct):
             }
         )
     
-    def _create_get_feed_function(self) -> _lambda.Function:
+    def _create_calculate_feed_function(self) -> _lambda.Function:
         return _lambda.Function(
             self,
-            "GetFeedFunction",
-            function_name=f"{self.config.app_name}-GetFeed",
+            "CalculateFeedFunction",
+            function_name=f"{self.config.app_name}-CalculateFeed",
             runtime=_lambda.Runtime.PYTHON_3_9,
             handler="index.handler",
-            code=_lambda.Code.from_asset("lambda_functions/get_feed"),
+            code=_lambda.Code.from_asset("lambda_functions/calculate_feed"),
             timeout=Duration.seconds(self.config.lambda_timeout),
             memory_size=self.config.lambda_memory,
             tracing=_lambda.Tracing.ACTIVE if self.config.enable_x_ray_tracing else _lambda.Tracing.DISABLED,
             environment={
                 'MUSIC_CONTENT_TABLE': self.music_content_table.table_name,
                 'ALBUMS_TABLE': self.albums_table.table_name,
+                'FEED_TABLE': self.feed_table.table_name,
                 'SUBSCRIPTIONS_TABLE': self.subscriptions_table.table_name,
                 'USERS_TABLE': self.users_table.table_name,
                 'RATINGS_TABLE': self.ratings_table.table_name,
                 'MUSIC_CONTENT_BUCKET': self.config.music_bucket_name,
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
 
@@ -722,7 +770,7 @@ class UserLambdas(Construct):
         # DynamoDB permissions for existing functions
         self.users_table.grant_read_write_data(self.login_function)
         self.users_table.grant_read_write_data(self.registration_function)
-        self.users_table.grant_read_data(self.get_feed_function)
+        self.users_table.grant_read_data(self.calculate_feed_function)
         self.users_table.grant_read_data(self.get_music_content_function)
         self.artists_table.grant_read_write_data(self.create_artist_function)
         self.ratings_table.grant_read_write_data(self.create_rating_function)
@@ -736,13 +784,13 @@ class UserLambdas(Construct):
 
         self.subscriptions_table.grant_read_data(self.is_subscribed_function)
 
-        self.subscriptions_table.grant_read_data(self.get_feed_function)
+        self.subscriptions_table.grant_read_data(self.calculate_feed_function)
 
         self.ratings_table.grant_read_data(self.is_rated_function)
 
-        self.ratings_table.grant_read_data(self.get_feed_function)
+        self.ratings_table.grant_read_data(self.calculate_feed_function)
 
-        self.albums_table.grant_read_write_data(self.get_feed_function)
+        self.albums_table.grant_read_write_data(self.calculate_feed_function)
 
         self.music_content_table.grant_read_data(self.add_to_history_function)
         self.artists_table.grant_read_data(self.add_to_history_function)
@@ -753,20 +801,22 @@ class UserLambdas(Construct):
         self.music_content_table.grant_read_write_data(self.update_music_content_function)
         self.music_content_table.grant_read_data(self.get_music_content_function)
 
-        self.music_content_table.grant_read_data(self.get_feed_function)
+        self.music_content_table.grant_read_data(self.calculate_feed_function)
 
 
         self.music_content_table.grant_read_write_data(self.delete_music_content_function)
         self.notifications_table.grant_read_write_data(self.notify_subscribers_function)
         self.notifications_table.grant_read_data(self.get_notifications_function)
         
+        self.users_table.grant_read_write_data(self.notify_subscribers_function)
+
         # S3 permissions
         self.music_bucket.grant_read_write(self.create_music_content_function)
         self.music_bucket.grant_read(self.get_music_content_function)
         self.music_bucket.grant_read_write(self.delete_music_content_function)
         self.music_bucket.grant_read_write(self.update_music_content_function)
 
-        self.music_bucket.grant_read_write(self.get_feed_function)
+        self.music_bucket.grant_read_write(self.calculate_feed_function)
 
         print("Permissions granted successfully")
     
@@ -793,7 +843,11 @@ class UserLambdas(Construct):
         self.transcriptions_table.grant_read_write_data(self.start_transcription_function)
         self.transcriptions_table.grant_read_write_data(self.monitor_transcription_function)
         self.transcriptions_table.grant_read_data(self.get_transcription_function)
-        
+
+        self.feed_table.grant_read_write_data(self.calculate_feed_function)
+        self.feed_table.grant_read_write_data(self.get_feed_function)
+        self.feed_table.grant_read_write_data(self.registration_function)
+
         # Amazon Transcribe permissions
         transcribe_policy = iam.PolicyStatement(
             effect=iam.Effect.ALLOW,
@@ -816,7 +870,19 @@ class UserLambdas(Construct):
         # SQS permissions
         self.transcription_queue.grant_send_messages(self.start_transcription_function)
         self.transcription_queue.grant_send_messages(self.monitor_transcription_function)
-        
+
+        self.feed_queue.grant_send_messages(self.calculate_feed_function)
+        self.feed_queue.grant_send_messages(self.create_rating_function)
+        self.feed_queue.grant_send_messages(self.create_subscription_function)
+        self.feed_queue.grant_send_messages(self.add_to_history_function)
+        self.feed_queue.grant_send_messages(self.registration_function)
+
+        self.calculate_feed_function.grant_invoke(self.create_rating_function)
+        self.calculate_feed_function.grant_invoke(self.create_subscription_function)
+        self.calculate_feed_function.grant_invoke(self.delete_subscription_function)
+        self.calculate_feed_function.grant_invoke(self.add_to_history_function)
+        self.calculate_feed_function.grant_invoke(self.registration_function)
+
         self.start_transcription_function.grant_invoke(self.create_music_content_function)
         # Lambda invoke permissions for create_music_content to trigger transcription
         self.start_transcription_function.grant_invoke(

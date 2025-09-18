@@ -37,6 +37,11 @@ def handler(event, context):
         
         logger.info(f"Subscription created successfully: {subscription_id}")
         
+        trigger_feed_calculation(
+            username=subscription_data['username'],
+            subscription=subscription_data
+        )
+
         return create_success_response(201, {
             'message': 'Subscription created successfully',
             'subscription': {
@@ -180,6 +185,27 @@ def create_success_response(status_code, data):
         'headers': get_cors_headers(),
         'body': json.dumps(data, default=str)
     }
+
+def trigger_feed_calculation(username, subscription=None):
+    """Trigger feed calculation after subscription update"""
+    
+    lambda_client = boto3.client('lambda')
+    
+    payload = {
+        'username': username,
+        'action': 'subscription_updated',
+        'subscription': subscription,
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Invoke calculate feed function asynchronously
+    lambda_client.invoke(
+        FunctionName=os.environ['CALCULATE_FEED_FUNCTION'],
+        InvocationType='Event',  # Async invocation
+        Payload=json.dumps(payload)
+    )
+    
+    print(f"Feed calculation triggered for user: {username}")
 
 def create_error_response(status_code, message, details=None):
     """Create standardized error response"""

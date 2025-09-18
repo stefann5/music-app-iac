@@ -8,6 +8,7 @@ from constructss.auth import AuthConstruct
 from constructss.database import DatabaseConstruct
 from constructss.api import ApiConstruct
 from constructss.transcription import TranscriptionConstruct
+from constructss.feed import FeedConstruct
 from lambdas.user_lambdas import UserLambdas
 from constructss.s3 import S3Construct
 
@@ -19,6 +20,8 @@ class MusicAppStack(Stack):
         self.config = config
         
         transcription = TranscriptionConstruct(self, "Transcription", config)
+
+        feed = FeedConstruct(self, "Feed", config)
         
         # Step 1: Create authentication system (Cognito)
         auth = AuthConstruct(self, "Auth", config)
@@ -41,7 +44,9 @@ class MusicAppStack(Stack):
             database.notifications_table,
             database.albums_table,
             database.transcriptions_table,
-            transcription.transcription_queue 
+            transcription.transcription_queue,
+            database.feed_table,
+            feed.feed_queue
         )
         
         api = ApiConstruct(
@@ -67,12 +72,13 @@ class MusicAppStack(Stack):
             user_lambdas.get_notifications_function,
             user_lambdas.is_rated_function,
             user_lambdas.is_subscribed_function,
-            user_lambdas.get_feed_function,
+            user_lambdas.calculate_feed_function,
             user_lambdas.discover_function, 
             user_lambdas.create_album_function, 
             user_lambdas.get_albums_function,     
             user_lambdas.add_to_history_function,
-            user_lambdas.get_transcription_function
+            user_lambdas.get_transcription_function,
+            user_lambdas.get_feed_function
         )
         
         # Step 5: Create outputs
