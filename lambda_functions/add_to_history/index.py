@@ -20,6 +20,13 @@ def handler(event, context):
     
     try:
         
+        if is_admin_user(event):
+            return {
+                'statusCode': 201,
+                'headers': get_cors_headers(),
+                'body': json.dumps({'message': ''})
+            }
+
         # Parse request body
         if not event.get('body'):
             return create_error_response(400, "Request body is required")
@@ -67,6 +74,22 @@ def create_rating_record(rating_id, input_data, event):
         'timestamp': datetime.now().isoformat()
     }
 
+
+def is_admin_user(event):
+    """Check if the user has administrator role"""
+    try:
+        request_context = event.get('requestContext', {})
+        authorizer = request_context.get('authorizer', {})
+        
+        # Check if user is in administrators group
+        groups = authorizer.get('groups', '').split(',')
+        role = authorizer.get('role', '')
+        
+        return 'administrators' in groups or role == 'admin'
+        
+    except Exception as e:
+        print(f"Error checking admin role: {str(e)}")
+        return False
 
 def add_to_history(contentId, username):
     """Store rating with duplicate check using scan (for small tables)"""

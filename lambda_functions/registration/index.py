@@ -55,6 +55,10 @@ def handler(event, context):
         
         insert_empty_feed(body['username'])
 
+        trigger_feed_calculation(
+            username=body['username']
+        )
+
         return create_success_response(201, {
             'message': 'User registered successfully',
             'userId': user_id,
@@ -69,6 +73,26 @@ def handler(event, context):
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         return create_error_response(500, "Internal server error")
+
+def trigger_feed_calculation(username):
+    """Trigger feed calculation after subscription update"""
+    
+    lambda_client = boto3.client('lambda')
+    
+    payload = {
+        'username': username,
+        'action': 'registration',
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Invoke calculate feed function asynchronously
+    lambda_client.invoke(
+        FunctionName=os.environ['CALCULATE_FEED_FUNCTION'],
+        InvocationType='Event',  # Async invocation
+        Payload=json.dumps(payload)
+    )
+    
+    print(f"Feed calculation triggered for user: {username}")
 
 def validate_registration_input(input_data):
     """

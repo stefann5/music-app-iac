@@ -149,7 +149,8 @@ class UserLambdas(Construct):
                 'USERS_TABLE': self.users_table.table_name,
                 'FEED_TABLE': self.feed_table.table_name,
                 'PASSWORD_MIN_LENGTH': str(self.config.password_min_length),
-                'APP_NAME': self.config.app_name
+                'APP_NAME': self.config.app_name,
+                'CALCULATE_FEED_FUNCTION': f"{self.config.app_name}-CalculateFeed" 
             }
         )
     def _create_login_function(self) -> _lambda.Function:
@@ -874,11 +875,13 @@ class UserLambdas(Construct):
         self.feed_queue.grant_send_messages(self.create_rating_function)
         self.feed_queue.grant_send_messages(self.create_subscription_function)
         self.feed_queue.grant_send_messages(self.add_to_history_function)
+        self.feed_queue.grant_send_messages(self.registration_function)
 
         self.calculate_feed_function.grant_invoke(self.create_rating_function)
         self.calculate_feed_function.grant_invoke(self.create_subscription_function)
         self.calculate_feed_function.grant_invoke(self.delete_subscription_function)
         self.calculate_feed_function.grant_invoke(self.add_to_history_function)
+        self.calculate_feed_function.grant_invoke(self.registration_function)
 
         self.start_transcription_function.grant_invoke(self.create_music_content_function)
         # Lambda invoke permissions for create_music_content to trigger transcription
